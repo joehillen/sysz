@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 
-get_service_type() {
-  service_type=$(fzf --reverse --prompt="Select the service type:" < <(
-  echo system
-  echo user
-  ))
+preview_service() {
+    case $1 in
+        --system|--user)
+            awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl $1 -n 30 --user status --no-pager {}" ;;
+        *) exit 1
+    esac
+}
+
+promptmode() {
+    case $(printf '%s\n' system user | fzf --reverse --prompt='Select the service type:') in
+        system) printf '%s\n' --system ;;
+        user) printf '%s\n' --user ;;
+        *) exit 1
+    esac
+}
+
+sudo() {
+    case $mode in
+        --system) command sudo "$@" ;;
+        --user) "$@"
+    esac
 }
 
 fsysctl() {
@@ -41,82 +57,76 @@ fsysctl() {
   esac
 }
 
+# sysstart - stop systemctl unit
+sysstart() {
+    mode=$(promptmode)
+
+    systemctl "$mode" list-unit-files --no-legend --type=service \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            if sudo systemctl "$mode" start "$unit"; then
+                systemctl "$mode" -n20 status "$unit"
+            fi
+        done
+}
+
+# sysstop - stop systemctl unit
+sysstop() {
+    mode=$(promptmode)
+
+    systemctl "$mode" list-units --no-legend --type=service --state=running \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            if sudo systemctl "$mode" stop "$unit"; then
+                systemctl "$mode" -n20 status "$unit"
+            fi
+        done
+}
+
+# sysstat - systemctl unit status
+sysstat() {
+    mode=$(promptmode)
+
+    systemctl "$mode" list-unit-files --no-legend --type=service \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            systemctl "$mode" -n20 status "$unit"
+        done
+}
+
 # sysedit - edit systemd unit
 sysedit() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
-    [ -n "$unit" ] && sudo systemctl edit --full "$unit"
-  else
-    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl --user edit --full "$unit"
-  fi
+  mode=$(promptmode)
+
+  systemctl "$mode" list-unit-files --no-legend --type=service \
+    | preview_service "$mode" \
+    | while read -r unit && [ "$unit" ]; do
+      sudo systemctl "$mode" edit --full "$unit"
+    done
 }
 
-# sysenable - enable and start systemd unit
+# sysenable - enable & start systemd unit
 sysenable() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --no-legend --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl enable --now "$unit" && sudo systemctl -n 20 status "$unit"
-  else
-    unit=$(systemctl list-unit-files --no-legend --user --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && systemctl --user enable --now "$unit" && systemctl -n 20 --user status "$unit"
-  fi
+    mode=$(promptmode)
+
+    systemctl "$mode" list-unit-files --no-legend --type=service --state=disabled \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            if sudo systemctl "$mode" enable --now "$unit"; then
+                systemctl "$mode" -n20 status "$unit"
+            fi
+        done
 }
 
-# sysdisable - disable and stop systemd unit
+# sysdisable - disable & stop systemd unit
 sysdisable() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --no-legend --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl disable --now "$unit" && sudo systemctl -n 20 status "$unit"
-  else
-    unit=$(systemctl list-unit-files --no-legend --user --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && systemctl --user disable --now "$unit" && systemctl -n 20 --user status "$unit"
-  fi
-}
+    mode=$(promptmode)
 
-# sysstart - start systemd unit
-sysstart() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
-    [ -n "$unit" ] && sudo systemctl start "$unit" && sudo systemctl -n 20 status "$unit"
-  else
-    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl --user start "$unit" && systemctl -n 20 --user status "$unit"
-  fi
-}
-
-# sysstop - stop systemd unit
-sysstop() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-units --no-legend --type=service --state=running | preview_service)
-    [ -n "$unit" ] && sudo systemctl stop "$unit" && sudo systemctl -n 20 status "$unit"
-  else
-    unit=$(systemctl list-units --no-legend --user --type=service --state=running | preview_service)
-    [ -n "$unit" ] && systemctl --user stop "$unit" && systemctl -n 20 --user status "$unit"
-  fi
-}
-
-# sysstat - show systemd unit status
-sysstat() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
-    [ -n "$unit" ] && systemctl -n 20 status "$unit"
-  else
-    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl -n 20 --user status "$unit"
-  fi
-}
-
-preview_service() {
-  if [[ "$service_type" = "system" ]]; then
-    awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl -n 30 status --no-pager {}"
-  else
-    awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl -n 30 --user status --no-pager {}"
-  fi
+    systemctl "$mode" list-unit-files --no-legend --type=service --state=enabled \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            if sudo systemctl "$mode" disable --now "$unit"; then
+                systemctl "$mode" -n20 status "$unit"
+            fi
+        done
 }
