@@ -36,6 +36,8 @@ source <(curl -sSL git.io/JteMq)
 
 ## :star: Features
 
+All commands support multi selection via Tab.
+
 ```bash
 - fsysctl (fully interactive)
 # All can be interactively used with `--user` services
