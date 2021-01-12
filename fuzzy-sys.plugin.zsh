@@ -45,90 +45,78 @@ fsysctl() {
 sysedit() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service | preview_service)
+    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
     [ -n "$unit" ] && sudo systemctl edit --full "$unit"
   else
-    unit=$(systemctl list-unit-files --user --type=service | preview_service)
+    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
     [ -n "$unit" ] && systemctl --user edit --full "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysenable - enable and start systemd unit
 sysenable() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl enable --now "$unit" && sudo systemctl status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --type=service --state=disabled | preview_service)
+    [ -n "$unit" ] && sudo systemctl enable --now "$unit" && sudo systemctl -n 20 status "$unit"
   else
-    unit=$(systemctl list-unit-files --user --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && systemctl --user enable --now "$unit" && systemctl --user status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --user --type=service --state=disabled | preview_service)
+    [ -n "$unit" ] && systemctl --user enable --now "$unit" && systemctl -n 20 --user status "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysdisable - disable and stop systemd unit
 sysdisable() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl disable --now "$unit" && sudo systemctl status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --type=service --state=enabled | preview_service)
+    [ -n "$unit" ] && sudo systemctl disable --now "$unit" && sudo systemctl -n 20 status "$unit"
   else
-    unit=$(systemctl list-unit-files --user --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && systemctl --user disable --now "$unit" && systemctl --user status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --user --type=service --state=enabled | preview_service)
+    [ -n "$unit" ] && systemctl --user disable --now "$unit" && systemctl -n 20 --user status "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstart - start systemd unit
 sysstart() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service | preview_service)
-    [ -n "$unit" ] && sudo systemctl start "$unit" && sudo systemctl status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
+    [ -n "$unit" ] && sudo systemctl start "$unit" && sudo systemctl -n 20 status "$unit"
   else
-    unit=$(systemctl list-unit-files --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl --user start "$unit" && systemctl --user status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
+    [ -n "$unit" ] && systemctl --user start "$unit" && systemctl -n 20 --user status "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstop - stop systemd unit
 sysstop() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-units --type=service --state=running | preview_service)
-    [ -n "$unit" ] && sudo systemctl stop "$unit" && sudo systemctl status "$unit"
+    unit=$(systemctl list-units --no-legend --type=service --state=running | preview_service)
+    [ -n "$unit" ] && sudo systemctl stop "$unit" && sudo systemctl -n 20 status "$unit"
   else
-    unit=$(systemctl list-units --user --type=service --state=running | preview_service)
-    [ -n "$unit" ] && systemctl --user stop "$unit" && systemctl --user status "$unit"
+    unit=$(systemctl list-units --no-legend --user --type=service --state=running | preview_service)
+    [ -n "$unit" ] && systemctl --user stop "$unit" && systemctl -n 20 --user status "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstat - show systemd unit status
 sysstat() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service | preview_service)
-    sudo systemctl status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --type=service | preview_service)
+    [ -n "$unit" ] && systemctl -n 20 status "$unit"
   else
-    unit=$(systemctl list-unit-files --user --type=service | preview_service)
-    systemctl --user status "$unit"
+    unit=$(systemctl list-unit-files --no-legend --user --type=service | preview_service)
+    [ -n "$unit" ] && systemctl -n 20 --user status "$unit"
   fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 preview_service() {
   if [[ "$service_type" = "system" ]]; then
-    awk '{print $1}' | grep service | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl status --no-pager {} && journalctl -u {}"
+    awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl -n 30 status --no-pager {}"
   else
-    awk '{print $1}' | grep service | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl --user status --no-pager {} && journalctl -u {}"
+    awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl -n 30 --user status --no-pager {}"
   fi
 }
