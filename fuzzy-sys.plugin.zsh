@@ -52,7 +52,7 @@ sysedit() {
     [ -n "$unit" ] && systemctl --user edit --full "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysenable - enable and start systemd unit
@@ -66,7 +66,7 @@ sysenable() {
     [ -n "$unit" ] && systemctl --user enable --now "$unit" && systemctl --user status "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysdisable - disable and stop systemd unit
@@ -80,7 +80,7 @@ sysdisable() {
     [ -n "$unit" ] && systemctl --user disable --now "$unit" && systemctl --user status "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstart - start systemd unit
@@ -94,7 +94,7 @@ sysstart() {
     [ -n "$unit" ] && systemctl --user start "$unit" && systemctl --user status "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstop - stop systemd unit
@@ -108,7 +108,7 @@ sysstop() {
     [ -n "$unit" ] && systemctl --user stop "$unit" && systemctl --user status "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 # sysstat - show systemd unit status
@@ -122,13 +122,13 @@ sysstat() {
     systemctl --user status "$unit"
   fi
 
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
+  [ -n "$unit" ] && journalctl -u "$unit" --no-pager
 }
 
 preview_service() {
   if [[ "$service_type" = "system" ]]; then
-    awk '{print $1}' | grep service | fzf --ansi --preview="SYSTEMD_COLORS=1 systemctl status --no-pager {}"
+    awk '{print $1}' | grep service | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl status --no-pager {} && journalctl -u {}"
   else
-    awk '{print $1}' | grep service | fzf --ansi --preview="SYSTEMD_COLORS=1 systemctl --user status --no-pager {}"
+    awk '{print $1}' | grep service | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl --user status --no-pager {} && journalctl -u {}"
   fi
 }
