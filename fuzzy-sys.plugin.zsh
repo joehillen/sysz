@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 get_service_type() {
-  service_type=$(fzf --multi --reverse --prompt="Select the service type:" < <(
+  service_type=$(fzf --reverse --prompt="Select the service type:" < <(
   echo system
   echo user
   ))
@@ -60,38 +60,10 @@ sysenable() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
     unit=$(systemctl list-unit-files --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl enable --now "$unit"
+    [ -n "$unit" ] && sudo systemctl enable --now "$unit" && sudo systemctl status "$unit"
   else
     unit=$(systemctl list-unit-files --user --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && systemctl --user enable --now "$unit"
-  fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
-}
-
-# sysedit - edit systemd unit
-sysedit() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service | preview_service)
-    [ -n "$unit" ] && sudo systemctl edit --full "$unit"
-  else
-    unit=$(systemctl list-unit-files --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl --user edit --full "$unit"
-  fi
-
-  [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
-}
-
-# sysenable - enable and start systemd unit
-sysenable() {
-  get_service_type
-  if [[ "$service_type" = "system" ]]; then
-    unit=$(systemctl list-unit-files --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl enable --now "$unit"
-  else
-    unit=$(systemctl list-unit-files --user --type=service --state=disabled | preview_service)
-    [ -n "$unit" ] && systemctl --user enable --now "$unit"
+    [ -n "$unit" ] && systemctl --user enable --now "$unit" && systemctl --user status "$unit"
   fi
 
   [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
@@ -102,10 +74,10 @@ sysdisable() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
     unit=$(systemctl list-unit-files --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && sudo systemctl disable --now "$unit"
+    [ -n "$unit" ] && sudo systemctl disable --now "$unit" && sudo systemctl status "$unit"
   else
     unit=$(systemctl list-unit-files --user --type=service --state=enabled | preview_service)
-    [ -n "$unit" ] && systemctl --user disable --now "$unit"
+    [ -n "$unit" ] && systemctl --user disable --now "$unit" && systemctl --user status "$unit"
   fi
 
   [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
@@ -116,10 +88,10 @@ sysstart() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
     unit=$(systemctl list-unit-files --type=service | preview_service)
-    [ -n "$unit" ] && sudo systemctl start "$unit"
+    [ -n "$unit" ] && sudo systemctl start "$unit" && sudo systemctl status "$unit"
   else
     unit=$(systemctl list-unit-files --user --type=service | preview_service)
-    [ -n "$unit" ] && systemctl --user start "$unit"
+    [ -n "$unit" ] && systemctl --user start "$unit" && systemctl --user status "$unit"
   fi
 
   [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
@@ -130,10 +102,10 @@ sysstop() {
   get_service_type
   if [[ "$service_type" = "system" ]]; then
     unit=$(systemctl list-units --type=service --state=running | preview_service)
-    [ -n "$unit" ] && sudo systemctl stop "$unit"
+    [ -n "$unit" ] && sudo systemctl stop "$unit" && sudo systemctl status "$unit"
   else
     unit=$(systemctl list-units --user --type=service --state=running | preview_service)
-    [ -n "$unit" ] && systemctl --user stop "$unit"
+    [ -n "$unit" ] && systemctl --user stop "$unit" && systemctl --user status "$unit"
   fi
 
   [ -n "$unit" ] && journalctl -u "$unit" --since "10 sec ago" --no-pager
