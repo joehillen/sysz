@@ -17,12 +17,6 @@ zgen load 'NullSense/fuzzy-sys'
 # for antigen
 antigen bundle 'NullSense/fuzzy-sys'
 
-# for fisher
-fisher install NullSense/fuzzy-sys
-
-# for omf
-omf install https://github.com/NullSense/fuzzy-sys
-
 # manually
 # Clone the repository and source it in your shell's rc file.
 ```
