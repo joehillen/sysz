@@ -33,40 +33,23 @@ source <(curl -sSL git.io/JteMq)
 All commands support multi selection via Tab.
 
 ```bash
-- fsysctl (fully interactive)
-# All can be interactively used with `--user` services
-- sysstat (systemtl status $unit)
-- sysstart (systemtl start $unit)
-- sysstop (systemtl stop $unit)
-- sysedit (systemtl edit $unit)
-- sysenable (systemtl enable $unit)
-- sysdisable (systemtl disable $unit)
+Usage: fuzzy-sys [options]
+Utility for using systemctl interactively via fzf.
+If no options are given fully interactive mode is launched with system service units being used.
+    -u          : work with --user services
+    --start     : systemctl start <unit>
+    --stop      : systemctl stop <unit>
+    --status    : systemctl status <unit>
+    --edit      : systemctl edit --full <unit>
+    --enable    : systemctl enable --now <unit>
+    --disable   : systemctl disable --now <unit>
+    --help      : print this message and exit
+
+Examples:
+    fuzzy-sys -u --edit    : edit a user service
+    fuzzy-sys --start      : start a system service
 ```
 
-### :control_knobs: `systemctl` control center (`fsysctl`)
+## Demo
 
-[![asciicast](https://asciinema.org/a/CCIPOAEajb1PM360lvZxX3MOZ.svg)](https://asciinema.org/a/CCIPOAEajb1PM360lvZxX3MOZ)
-
-### :bar_chart: `systemctl status` (`sysstat`)
-
-[![asciicast](https://asciinema.org/a/cbdDMDGCHMD2c1rClJEM7Qk2W.svg)](https://asciinema.org/a/cbdDMDGCHMD2c1rClJEM7Qk2W)
-
-### :arrow_forward: `systemctl start` (`sysstart`)
-
-[![asciicast](https://asciinema.org/a/P3TteInPNT3z8MHXgiXDCJYDD.svg)](https://asciinema.org/a/P3TteInPNT3z8MHXgiXDCJYDD)
-
-### :stop_button: `systemctl stop` (`sysstop`)
-
-[![asciicast](https://asciinema.org/a/AND4bOS7OjO26scbNLPMmAd3g.svg)](https://asciinema.org/a/AND4bOS7OjO26scbNLPMmAd3g)
-
-### :memo: `systemctl edit --full` (`sysedit`)
-
-[![asciicast](https://asciinema.org/a/2uqHRF9rJu2lTz3CvdwBSuPrD.svg)](https://asciinema.org/a/2uqHRF9rJu2lTz3CvdwBSuPrD)
-
-### :white_check_mark: `systemctl enable` (`sysenable`)
-
-[![asciicast](https://asciinema.org/a/tmRL0c9W8xbJmFMuXfbrk95s6.svg)](https://asciinema.org/a/tmRL0c9W8xbJmFMuXfbrk95s6)
-
-### :x: `systemctl disable` (`sysdisable`)
-
-[![asciicast](https://asciinema.org/a/VCtem6GjJbUKVlrYfCKobdSjU.svg)](https://asciinema.org/a/VCtem6GjJbUKVlrYfCKobdSjU)
+[![asciicast](https://asciinema.org/a/kXIMbM2mAfPXo4As4aVagXMxx.svg)](https://asciinema.org/a/kXIMbM2mAfPXo4As4aVagXMxx)
