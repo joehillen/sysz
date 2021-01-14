@@ -1,4 +1,24 @@
-#!/usr/bin/env bash
+fuzzy-sys() {
+help() {
+    cat >&2 <<EOF
+Usage: fuzzy-sys [options]
+Utility for using systemctl interactively via fzf.
+If no options are given fully interactive mode is launched with system service units being used.
+    -u          : work with --user services
+    --start     : systemctl start <unit>
+    --stop      : systemctl stop <unit>
+    --status    : systemctl status <unit>
+    --edit      : systemctl edit --full <unit>
+    --enable    : systemctl enable --now <unit>
+    --disable   : systemctl disable --now <unit>
+    --help      : print this message and exit
+
+Examples:
+    fuzzy-sys -u --edit    : edit a user service
+    fuzzy-sys --start      : start a system service
+EOF
+}
+
 
 preview_service() {
     case $1 in
@@ -9,10 +29,15 @@ preview_service() {
 }
 
 promptmode() {
-    case $(fzf --reverse --prompt='Select the service type:' <<< $'system\nuser\n') in
+    case $super in
         system) printf '%s\n' --system ;;
         user) printf '%s\n' --user ;;
-        *) exit 1
+        *)
+            case $(fzf --reverse --prompt='Select the service type:' <<< $'system\nuser') in
+                system) printf '%s\n' --system ;;
+                user) printf '%s\n' --user ;;
+                *) exit 1
+            esac
     esac
 }
 
@@ -23,8 +48,8 @@ _sudo() {
     esac
 }
 
-fsysctl() {
-    mode=$(fzf --reverse --ansi --prompt="Select systemctl mode:" "$@" < <(
+interactive() {
+    mode=$(fzf --reverse --ansi --prompt="Select systemctl mode:" < <(
     printf '\033[0;32m%s\033[0m\n' start
     printf '\033[0;31m%s\033[0m\n' stop
     printf '\033[0;37m%s\033[0m\n' status
@@ -36,14 +61,13 @@ fsysctl() {
     case $mode in
         start) sysstart ;;
         stop) sysstop ;;
-        status) sysstat ;;
+        status) sysstatus ;;
         edit) sysedit ;;
         enable) sysenable ;;
         disable) sysdisable
     esac
 }
 
-# sysstart - stop systemctl unit
 sysstart() {
     mode=$(promptmode)
 
@@ -51,12 +75,11 @@ sysstart() {
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
             if _sudo systemctl "$mode" start "$unit"; then
-                systemctl "$mode" -n20 status "$unit"
+                systemctl "$mode" -n20 status "$unit" --no-pager
             fi
         done
-    }
+}
 
-# sysstop - stop systemctl unit
 sysstop() {
     mode=$(promptmode)
 
@@ -64,34 +87,29 @@ sysstop() {
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
             if _sudo systemctl "$mode" stop "$unit"; then
-                systemctl "$mode" -n20 status "$unit"
+                systemctl "$mode" -n20 status "$unit" --no-pager
             fi
         done
-    }
+}
 
-# sysstat - systemctl unit status
-sysstat() {
+sysstatus() {
     mode=$(promptmode)
 
     systemctl "$mode" list-unit-files --no-legend --type=service \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            systemctl "$mode" -n20 status "$unit"
+            systemctl "$mode" -n20 status "$unit" --no-pager
         done
-    }
+}
 
-# sysedit - edit systemd unit
 sysedit() {
     mode=$(promptmode)
 
-    systemctl "$mode" list-unit-files --no-legend --type=service \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            _sudo systemctl "$mode" edit --full "$unit"
-        done
-    }
+    units=($(systemctl "$mode" list-unit-files --no-legend --type=service \
+        | preview_service "$mode"))
+    _sudo systemctl "$mode" edit --full "${units[@]}"
+}
 
-# sysenable - enable & start systemd unit
 sysenable() {
     mode=$(promptmode)
 
@@ -99,12 +117,11 @@ sysenable() {
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
             if _sudo systemctl "$mode" enable --now "$unit"; then
-                systemctl "$mode" -n20 status "$unit"
+                systemctl "$mode" -n20 status "$unit" --no-pager
             fi
         done
-    }
+}
 
-# sysdisable - disable & stop systemd unit
 sysdisable() {
     mode=$(promptmode)
 
@@ -112,7 +129,49 @@ sysdisable() {
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
             if _sudo systemctl "$mode" disable --now "$unit"; then
-                systemctl "$mode" -n20 status "$unit"
+                systemctl "$mode" -n20 status "$unit" --no-pager
             fi
         done
-    }
+}
+
+super=system
+while :; do
+    case $1 in
+        -u)
+            super=user
+            ;;
+        --start)
+         sysstart
+         break
+         ;;
+        --stop)
+         sysstop
+         break
+         ;;
+        --status)
+         sysstatus
+         break
+         ;;
+        --edit)
+         sysedit
+         break
+         ;;
+        --enable)
+         sysenable
+         break
+         ;;
+        --disable)
+            sysdisable
+            break
+            ;;
+        -h|--help)
+            help
+            break
+            ;;
+        *)
+            interactive
+            break
+    esac
+    shift
+done
+}
