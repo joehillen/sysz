@@ -16,7 +16,7 @@ promptmode() {
     esac
 }
 
-sudo() {
+_sudo() {
     case $mode in
         --system) command sudo "$@" ;;
         --user) "$@"
@@ -50,7 +50,7 @@ sysstart() {
     systemctl "$mode" list-unit-files --no-legend --type=service \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            if sudo systemctl "$mode" start "$unit"; then
+            if _sudo systemctl "$mode" start "$unit"; then
                 systemctl "$mode" -n20 status "$unit"
             fi
         done
@@ -63,7 +63,7 @@ sysstop() {
     systemctl "$mode" list-units --no-legend --type=service --state=running \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            if sudo systemctl "$mode" stop "$unit"; then
+            if _sudo systemctl "$mode" stop "$unit"; then
                 systemctl "$mode" -n20 status "$unit"
             fi
         done
@@ -87,7 +87,7 @@ sysedit() {
     systemctl "$mode" list-unit-files --no-legend --type=service \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            sudo systemctl "$mode" edit --full "$unit"
+            _sudo systemctl "$mode" edit --full "$unit"
         done
     }
 
@@ -98,7 +98,7 @@ sysenable() {
     systemctl "$mode" list-unit-files --no-legend --type=service --state=disabled \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            if sudo systemctl "$mode" enable --now "$unit"; then
+            if _sudo systemctl "$mode" enable --now "$unit"; then
                 systemctl "$mode" -n20 status "$unit"
             fi
         done
@@ -111,7 +111,7 @@ sysdisable() {
     systemctl "$mode" list-unit-files --no-legend --type=service --state=enabled \
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
-            if sudo systemctl "$mode" disable --now "$unit"; then
+            if _sudo systemctl "$mode" disable --now "$unit"; then
                 systemctl "$mode" -n20 status "$unit"
             fi
         done
