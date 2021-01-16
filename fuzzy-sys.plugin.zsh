@@ -23,7 +23,7 @@ EOF
 preview_service() {
     case $1 in
         --system|--user)
-            awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl $1 -n 30 --user status --no-pager {}" ;;
+            awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl $1 -n 30 status --no-pager {}" ;;
         *) exit 1
     esac
 }
