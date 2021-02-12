@@ -21,6 +21,8 @@ antigen bundle 'NullSense/fuzzy-sys'
 # Clone the repository and source it in your shell's rc file.
 ```
 
+## Try it out without installing anything
+
 If you want to try `fuzzy-sys` without installing it:
 
 ```bash
@@ -39,6 +41,7 @@ If no options are given fully interactive mode is launched with system service u
     -u          : work with --user services
     --start     : systemctl start <unit>
     --stop      : systemctl stop <unit>
+    --restart   : systemctl restart <unit>
     --status    : systemctl status <unit>
     --edit      : systemctl edit --full <unit>
     --enable    : systemctl enable --now <unit>
@@ -52,4 +55,4 @@ Examples:
 
 ## Demo
 
-[![asciicast](https://asciinema.org/a/kXIMbM2mAfPXo4As4aVagXMxx.svg)](https://asciinema.org/a/kXIMbM2mAfPXo4As4aVagXMxx)
+[![asciicast](https://asciinema.org/a/Zd9r05HPZOfGA4FLnwvSFUHiU.svg)](https://asciinema.org/a/Zd9r05HPZOfGA4FLnwvSFUHiU)
