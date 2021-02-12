@@ -7,6 +7,7 @@ If no options are given fully interactive mode is launched with system service u
     -u          : work with --user services
     --start     : systemctl start <unit>
     --stop      : systemctl stop <unit>
+    --restart   : systemctl restart <unit>
     --status    : systemctl status <unit>
     --edit      : systemctl edit --full <unit>
     --enable    : systemctl enable --now <unit>
@@ -52,6 +53,7 @@ interactive() {
     mode=$(fzf --reverse --ansi --prompt="Select systemctl mode:" < <(
     printf '\033[0;32m%s\033[0m\n' start
     printf '\033[0;31m%s\033[0m\n' stop
+    printf '\033[0;37m%s\033[0m\n' restart
     printf '\033[0;37m%s\033[0m\n' status
     printf '\033[0;37m%s\033[0m\n' edit
     printf '\033[0;32m%s\033[0m\n' enable
@@ -61,6 +63,7 @@ interactive() {
     case $mode in
         start) sysstart ;;
         stop) sysstop ;;
+        restart) sysrestart ;;
         status) sysstatus ;;
         edit) sysedit ;;
         enable) sysenable ;;
@@ -87,6 +90,18 @@ sysstop() {
         | preview_service "$mode" \
         | while read -r unit && [ "$unit" ]; do
             if _sudo systemctl "$mode" stop "$unit"; then
+                systemctl "$mode" -n20 status "$unit" --no-pager
+            fi
+        done
+}
+
+sysrestart() {
+    mode=$(promptmode)
+
+    systemctl "$mode" list-unit-files --no-legend --type=service \
+        | preview_service "$mode" \
+        | while read -r unit && [ "$unit" ]; do
+            if _sudo systemctl "$mode" restart "$unit"; then
                 systemctl "$mode" -n20 status "$unit" --no-pager
             fi
         done
@@ -146,6 +161,10 @@ while :; do
          ;;
         --stop)
          sysstop
+         break
+         ;;
+        --restart)
+         sysrestart
          break
          ;;
         --status)
