@@ -55,4 +55,4 @@ Examples:
 
 ## Demo
 
-[![asciicast](https://asciinema.org/a/Zd9r05HPZOfGA4FLnwvSFUHiU.svg)](https://asciinema.org/a/Zd9r05HPZOfGA4FLnwvSFUHiU)
+[![asciicast](https://asciinema.org/a/390806.svg)](https://asciinema.org/a/390806)
