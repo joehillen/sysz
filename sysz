@@ -1,7 +1,13 @@
-fuzzy-sys() {
+#!/bin/bash
+
+# TODO add timers support
+# TODO timer graph/chart
+
 help() {
+    # TODO reformat to DOCOPT format
+    # TODO add both short and long options
     cat >&2 <<EOF
-Usage: fuzzy-sys [options]
+Usage: sysz [options]
 Utility for using systemctl interactively via fzf.
 If no options are given fully interactive mode is launched with system service units being used.
     -u          : work with --user services
@@ -15,8 +21,8 @@ If no options are given fully interactive mode is launched with system service u
     --help      : print this message and exit
 
 Examples:
-    fuzzy-sys -u --edit    : edit a user service
-    fuzzy-sys --start      : start a system service
+    sysz -u --edit    : edit a user service
+    sysz --start      : start a system service
 EOF
 }
 
@@ -42,6 +48,7 @@ promptmode() {
     esac
 }
 
+# replace _sudo with _systemctl
 _sudo() {
     case $mode in
         --system) command sudo "$@" ;;
@@ -149,36 +156,39 @@ sysdisable() {
         done
 }
 
+# TODO rename "super"
 super=system
+# TODO remove "--"
+# TODO add both short and long options
 while :; do
     case $1 in
         -u)
             super=user
             ;;
         --start)
-         sysstart
-         break
-         ;;
+            sysstart
+            break
+            ;;
         --stop)
-         sysstop
-         break
-         ;;
+            sysstop
+            break
+            ;;
         --restart)
-         sysrestart
-         break
-         ;;
+            sysrestart
+            break
+            ;;
         --status)
-         sysstatus
-         break
-         ;;
+            sysstatus
+            break
+            ;;
         --edit)
-         sysedit
-         break
-         ;;
+            sysedit
+            break
+            ;;
         --enable)
-         sysenable
-         break
-         ;;
+            sysenable
+            break
+            ;;
         --disable)
             sysdisable
             break
@@ -193,4 +203,3 @@ while :; do
     esac
     shift
 done
-}

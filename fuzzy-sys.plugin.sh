@@ -1,1 +1,0 @@
-fuzzy-sys.plugin.zsh
