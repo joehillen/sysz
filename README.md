@@ -39,8 +39,6 @@ sudo make install
 
 # Usage
 
-All commands support multi selection via Tab.
-
 ```text
 A utility for using systemctl interactively via fzf.
 
