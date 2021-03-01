@@ -8,8 +8,8 @@ An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/j
 - Runs sudo automatically and only if necessary.
 - Shows status after every command.
 - Supports both services and timers.
-- TODO Select multiple units using TAB key.
-- TODO Only shows prompts commands based on running state (show "start" only if not running).
+- Select multiple units using TAB key.
+- Only shows prompts commands based on current state (show "start" only if not running).
 
 # Requirements
 
@@ -55,7 +55,7 @@ OPT:
   -s, --sys, --system    Only show --user services
   -h, --help             Print this message
 
-If no option is give, both system and user units are shown.
+If no option is given, both system and user units are shown.
 
 CMD:
   start                  systemctl start <unit>
@@ -68,7 +68,7 @@ CMD:
   d, dis, disable        systemctl disable --now <unit>
   h, help                Print this message
 
-If no command is given, one can be chosen interactively based on status.
+If no command is given, one can be chosen interactively based on state.
 
 Examples:
   sysz --system stat      Get the status of a system unit
