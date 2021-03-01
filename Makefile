@@ -1,4 +1,6 @@
-.PHONY: all
+.PHONY: all install
 
-all:
+all: install
+
+install:
 	install -m755 sysz /usr/local/bin/

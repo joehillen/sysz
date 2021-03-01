@@ -9,6 +9,8 @@ A utility for using systemctl interactively via fzf.
 If no command is given, one can be chosen interactively.
 If no option is give, both system and user units are shown.
 
+Select multiple units using TAB
+
 Usage: $PROG [OPT] [CMD] [args...]
 
 OPT:
@@ -135,6 +137,7 @@ PICK=
   [[ $SYSZ_UNITS = "system" || $SYSZ_UNITS = "all" ]] && _sysz_list --system | sed -e 's/^/[system] /'
 ) | fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
   read -r PICK
+  # TODO support multi
 
 if [[ -z $PICK ]]; then
   exit 1
