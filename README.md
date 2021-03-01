@@ -43,17 +43,19 @@ All commands support multi selection via Tab.
 
 ```text
 A utility for using systemctl interactively via fzf.
-If no command is given, one can be chosen interactively.
-If no option is give, both system and user units are shown.
 
-Select multiple units using the TAB key.
+Usage: sysz [OPT] [CMD] [ARGS...]
 
-Usage: sysz [OPT] [CMD] [args...]
+Select multiple units using TAB
+
+Extra ARGS are passed to the systemctl command.
 
 OPT:
   -u, --user             Only show --user services
   -s, --sys, --system    Only show --user services
   -h, --help             Print this message
+
+If no option is give, both system and user units are shown.
 
 CMD:
   start                  systemctl start <unit>
@@ -61,15 +63,18 @@ CMD:
   re, restart            systemctl restart <unit>
   s, stat, status        systemctl status <unit>
   ed, edit               systemctl edit --full <unit>
+  reload                 systemctl reload <unit>
   en, enable             systemctl enable --now <unit>
   d, dis, disable        systemctl disable --now <unit>
   h, help                Print this message
+
+If no command is given, one can be chosen interactively based on status.
 
 Examples:
   sysz --system stat      Get the status of a system unit
   sysz --user --edit      Edit a user unit
   sysz start              Start a unit
-  sysz -u s -n100         Show status of a user unit with 100 log lines
+  sysz -u s -n100         Show status of a user unit with 100 log lines.
 ```
 
 ## Demo
