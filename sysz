@@ -6,17 +6,19 @@ _sysz_help() {
   PROG=$(basename "$0")
   cat >&2 <<EOF
 A utility for using systemctl interactively via fzf.
-If no command is given, one can be chosen interactively.
-If no option is give, both system and user units are shown.
+
+Usage: $PROG [OPT] [CMD] [ARGS...]
 
 Select multiple units using TAB
 
-Usage: $PROG [OPT] [CMD] [args...]
+Extra ARGS are passed to the systemctl command.
 
 OPT:
   -u, --user             Only show --user services
   -s, --sys, --system    Only show --user services
   -h, --help             Print this message
+
+If no option is give, both system and user units are shown.
 
 CMD:
   start                  systemctl start <unit>
@@ -24,15 +26,18 @@ CMD:
   re, restart            systemctl restart <unit>
   s, stat, status        systemctl status <unit>
   ed, edit               systemctl edit --full <unit>
+  reload                 systemctl reload <unit>
   en, enable             systemctl enable --now <unit>
   d, dis, disable        systemctl disable --now <unit>
   h, help                Print this message
+
+If no command is given, one can be chosen interactively based on status.
 
 Examples:
   $PROG --system stat      Get the status of a system unit
   $PROG --user --edit      Edit a user unit
   $PROG start              Start a unit
-  $PROG -u s -n100         Show status of a user unit with 100 log lines
+  $PROG -u s -n100         Show status of a user unit with 100 log lines.
 EOF
 
   exit 1
@@ -83,8 +88,7 @@ _sysz_systemctl() {
 _sysz_preview() {
   export SYSTEMD_COLORS=1
   _sysz_systemctl $@ status --no-pager
-  # TODO timer calendar
-
+  # TODO timerctl cal
 }
 
 CMD=
@@ -111,6 +115,9 @@ while :; do
   d | dis | disable)
     CMD=disable
     ;;
+  reload)
+    CMD=disable
+    ;;
   h | help)
     _sysz_help
     ;;
@@ -127,46 +134,48 @@ while :; do
   break
 done
 
+_sysz_show() {
+  _sysz_systemctl $1 $2 show -p $3 --value
+}
+
 _sysz_list() {
   systemctl $1 list-unit-files --no-legend --full --type=service --type=timer --no-pager | awk '{print $1}'
 }
 
-PICK=
 (
   [[ $SYSZ_UNITS = "user" || $SYSZ_UNITS = "all" ]] && _sysz_list --user | sed -e 's/^/[user] /'
   [[ $SYSZ_UNITS = "system" || $SYSZ_UNITS = "all" ]] && _sysz_list --system | sed -e 's/^/[system] /'
 ) | fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
-  read -r PICK
-  # TODO support multi
+  while read -r PICK && [[ $PICK ]]; do
 
-if [[ -z $PICK ]]; then
-  exit 1
-fi
+    ACTIVE_STATE=$(_sysz_show $PICK ActiveState)
+    UNIT_FILE_STATE=$(_sysz_show $PICK UnitFileState)
+    CAN_RELOAD=$(_sysz_show $PICK CanReload)
 
-if [[ -z $CMD ]]; then
-  # TODO filter based on status
-  CMD=$(fzf --reverse --ansi --prompt="Select systemctl command:" < <(
-    printf '\033[0;37m%s\033[0m\n' status
-    printf '\033[0;37m%s\033[0m\n' restart
-    printf '\033[0;32m%s\033[0m\n' start
-    printf '\033[0;31m%s\033[0m\n' stop
-    printf '\033[0;32m%s\033[0m\n' enable
-    printf '\033[0;31m%s\033[0m\n' disable
-    printf '\033[0;37m%s\033[0m\n' edit
-  ))
-fi
+    if [[ -z $CMD ]]; then
+      fzf --reverse --ansi --bind=enter:replace-query+print-query --prompt="Select systemctl command: " < <(
+        printf '\033[0;37m%s\033[0m\n' status
+        [[ $ACTIVE_STATE = "active" ]] && printf '\033[0;37m%s\033[0m\n' restart
+        [[ $ACTIVE_STATE != "active" ]] && printf '\033[0;32m%s\033[0m\n' start
+        [[ $ACTIVE_STATE = "active" ]] && printf '\033[0;31m%s\033[0m\n' stop
+        [[ $UNIT_FILE_STATE != "enabled" ]] && printf '\033[0;32m%s\033[0m\n' enable
+        [[ $UNIT_FILE_STATE = "enabled" ]] && printf '\033[0;31m%s\033[0m\n' disable
+        printf '\033[0;37m%s\033[0m\n' edit
+        [[ $CAN_RELOAD = "yes" ]] && printf '\033[0;37m%s\033[0m\n' reload
+      ) | read -r CMD
+    fi
 
-if [[ -z $CMD ]]; then
-  exit 1
-fi
+    if [[ -z $CMD ]]; then
+      exit 1
+    fi
 
-case $CMD in
-enable | disable)
-  CMD="$CMD --now"
-  ;;
-esac
+    case $CMD in
+    enable | disable)
+      CMD="$CMD --now"
+      ;;
+    esac
 
-_sysz_systemctl $PICK $CMD "$@"
-if [[ $CMD != status ]]; then
-  _sysz_systemctl $PICK status --no-pager
-fi
+    _sysz_systemctl $PICK $CMD "$@"
+    _sysz_systemctl $PICK status --no-pager
+
+  done
