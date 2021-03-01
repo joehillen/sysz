@@ -1,205 +1,169 @@
 #!/bin/bash
 
-# TODO add timers support
-# TODO timer graph/chart
+shopt -s lastpipe
 
-help() {
-    # TODO reformat to DOCOPT format
-    # TODO add both short and long options
-    cat >&2 <<EOF
-Usage: sysz [options]
-Utility for using systemctl interactively via fzf.
-If no options are given fully interactive mode is launched with system service units being used.
-    -u          : work with --user services
-    --start     : systemctl start <unit>
-    --stop      : systemctl stop <unit>
-    --restart   : systemctl restart <unit>
-    --status    : systemctl status <unit>
-    --edit      : systemctl edit --full <unit>
-    --enable    : systemctl enable --now <unit>
-    --disable   : systemctl disable --now <unit>
-    --help      : print this message and exit
+_sysz_help() {
+  PROG=$(basename "$0")
+  cat >&2 <<EOF
+A utility for using systemctl interactively via fzf.
+If no command is given, one can be chosen interactively.
+If no option is give, both system and user units are shown.
+
+Usage: $PROG [OPT] [CMD] [args...]
+
+OPT:
+  -u, --user             Only show --user services
+  -s, --sys, --system    Only show --user services
+  -h, --help             Print this message
+
+CMD:
+  start                  systemctl start <unit>
+  stop                   systemctl stop <unit>
+  re, restart            systemctl restart <unit>
+  s, stat, status        systemctl status <unit>
+  ed, edit               systemctl edit --full <unit>
+  en, enable             systemctl enable --now <unit>
+  d, dis, disable        systemctl disable --now <unit>
+  h, help                Print this message
 
 Examples:
-    sysz -u --edit    : edit a user service
-    sysz --start      : start a system service
+  $PROG --system stat      Get the status of a system unit
+  $PROG --user --edit      Edit a user unit
+  $PROG start              Start a unit
+  $PROG -u s -n100         Show status of a user unit with 100 log lines
 EOF
+
+  exit 1
 }
 
+SYSZ_UNITS=all
 
-preview_service() {
-    case $1 in
-        --system|--user)
-            awk '{print $1}' | fzf --multi --ansi --preview="SYSTEMD_COLORS=1 systemctl $1 -n 30 status --no-pager {}" ;;
-        *) exit 1
-    esac
+while :; do
+  case $1 in
+  -u | --user)
+    SYSZ_UNITS=user
+    ;;
+  -s | --sys | --system)
+    SYSZ_UNITS=system
+    ;;
+  -h | --help)
+    _sysz_help
+    ;;
+  *)
+    break
+    ;;
+  esac
+  shift
+done
+
+_sysz_systemctl() {
+  if [[ $1 = '[system]' ]]; then
+    manager='--system'
+  elif [[ $1 = '[user]' ]]; then
+    manager='--user'
+  else
+    echo "Manager prefix is missing" >&2
+    exit 1
+  fi
+  shift
+  local unit=$1
+  shift
+  local cmd=$1
+  shift
+  if [[ $EUID -ne 0 && $manager = "--system" ]]; then
+    # only run sudo if we aren't root and it's a system unit
+    sudo systemctl $manager $cmd $unit $@
+  else
+    systemctl $manager $cmd $unit $@
+  fi
 }
 
-promptmode() {
-    case $super in
-        system) printf '%s\n' --system ;;
-        user) printf '%s\n' --user ;;
-        *)
-            case $(fzf --reverse --prompt='Select the service type:' <<< $'system\nuser') in
-                system) printf '%s\n' --system ;;
-                user) printf '%s\n' --user ;;
-                *) exit 1
-            esac
-    esac
+_sysz_preview() {
+  export SYSTEMD_COLORS=1
+  _sysz_systemctl $@ status --no-pager
+  # TODO timer calendar
+
 }
 
-# replace _sudo with _systemctl
-_sudo() {
-    case $mode in
-        --system) command sudo "$@" ;;
-        --user) "$@"
-    esac
+CMD=
+while :; do
+  case $1 in
+  start)
+    CMD=start
+    ;;
+  stop)
+    CMD=stop
+    ;;
+  re | restart)
+    CMD=restart
+    ;;
+  s | stat | status)
+    CMD=status
+    ;;
+  ed | edit)
+    CMD=edit
+    ;;
+  en | enable)
+    CMD=enable
+    ;;
+  d | dis | disable)
+    CMD=disable
+    ;;
+  h | help)
+    _sysz_help
+    ;;
+  preview)
+    shift
+    _sysz_preview $@
+    exit 0
+    ;;
+  *)
+    break
+    ;;
+  esac
+  shift
+  break
+done
+
+_sysz_list() {
+  systemctl $1 list-unit-files --no-legend --full --type=service --type=timer --no-pager | awk '{print $1}'
 }
 
-interactive() {
-    mode=$(fzf --reverse --ansi --prompt="Select systemctl mode:" < <(
+PICK=
+(
+  [[ $SYSZ_UNITS = "user" || $SYSZ_UNITS = "all" ]] && _sysz_list --user | sed -e 's/^/[user] /'
+  [[ $SYSZ_UNITS = "system" || $SYSZ_UNITS = "all" ]] && _sysz_list --system | sed -e 's/^/[system] /'
+) | fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
+  read -r PICK
+
+if [[ -z $PICK ]]; then
+  exit 1
+fi
+
+if [[ -z $CMD ]]; then
+  # TODO filter based on status
+  CMD=$(fzf --reverse --ansi --prompt="Select systemctl command:" < <(
+    printf '\033[0;37m%s\033[0m\n' status
+    printf '\033[0;37m%s\033[0m\n' restart
     printf '\033[0;32m%s\033[0m\n' start
     printf '\033[0;31m%s\033[0m\n' stop
-    printf '\033[0;37m%s\033[0m\n' restart
-    printf '\033[0;37m%s\033[0m\n' status
-    printf '\033[0;37m%s\033[0m\n' edit
     printf '\033[0;32m%s\033[0m\n' enable
     printf '\033[0;31m%s\033[0m\n' disable
-    ))
+    printf '\033[0;37m%s\033[0m\n' edit
+  ))
+fi
 
-    case $mode in
-        start) sysstart ;;
-        stop) sysstop ;;
-        restart) sysrestart ;;
-        status) sysstatus ;;
-        edit) sysedit ;;
-        enable) sysenable ;;
-        disable) sysdisable
-    esac
-}
+if [[ -z $CMD ]]; then
+  exit 1
+fi
 
-sysstart() {
-    mode=$(promptmode)
+case $CMD in
+enable | disable)
+  CMD="$CMD --now"
+  ;;
+esac
 
-    systemctl "$mode" list-unit-files --no-legend --type=service \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            if _sudo systemctl "$mode" start "$unit"; then
-                systemctl "$mode" -n20 status "$unit" --no-pager
-            fi
-        done
-}
-
-sysstop() {
-    mode=$(promptmode)
-
-    systemctl "$mode" list-units --no-legend --type=service --state=running \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            if _sudo systemctl "$mode" stop "$unit"; then
-                systemctl "$mode" -n20 status "$unit" --no-pager
-            fi
-        done
-}
-
-sysrestart() {
-    mode=$(promptmode)
-
-    systemctl "$mode" list-unit-files --no-legend --type=service \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            if _sudo systemctl "$mode" restart "$unit"; then
-                systemctl "$mode" -n20 status "$unit" --no-pager
-            fi
-        done
-}
-
-sysstatus() {
-    mode=$(promptmode)
-
-    systemctl "$mode" list-unit-files --no-legend --type=service \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            systemctl "$mode" -n20 status "$unit" --no-pager
-        done
-}
-
-sysedit() {
-    mode=$(promptmode)
-
-    units=($(systemctl "$mode" list-unit-files --no-legend --type=service \
-        | preview_service "$mode"))
-    _sudo systemctl "$mode" edit --full "${units[@]}"
-}
-
-sysenable() {
-    mode=$(promptmode)
-
-    systemctl "$mode" list-unit-files --no-legend --type=service --state=disabled \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            if _sudo systemctl "$mode" enable --now "$unit"; then
-                systemctl "$mode" -n20 status "$unit" --no-pager
-            fi
-        done
-}
-
-sysdisable() {
-    mode=$(promptmode)
-
-    systemctl "$mode" list-unit-files --no-legend --type=service --state=enabled \
-        | preview_service "$mode" \
-        | while read -r unit && [ "$unit" ]; do
-            if _sudo systemctl "$mode" disable --now "$unit"; then
-                systemctl "$mode" -n20 status "$unit" --no-pager
-            fi
-        done
-}
-
-# TODO rename "super"
-super=system
-# TODO remove "--"
-# TODO add both short and long options
-while :; do
-    case $1 in
-        -u)
-            super=user
-            ;;
-        --start)
-            sysstart
-            break
-            ;;
-        --stop)
-            sysstop
-            break
-            ;;
-        --restart)
-            sysrestart
-            break
-            ;;
-        --status)
-            sysstatus
-            break
-            ;;
-        --edit)
-            sysedit
-            break
-            ;;
-        --enable)
-            sysenable
-            break
-            ;;
-        --disable)
-            sysdisable
-            break
-            ;;
-        -h|--help)
-            help
-            break
-            ;;
-        *)
-            interactive
-            break
-    esac
-    shift
-done
+_sysz_systemctl $PICK $CMD "$@"
+if [[ $CMD != status ]]; then
+  _sysz_systemctl $PICK status --no-pager
+fi
