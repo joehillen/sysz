@@ -175,7 +175,10 @@ _sysz_list() {
       ;;
     esac
 
-    _sysz_systemctl $PICK $CMD "$@"
-    _sysz_systemctl $PICK status --no-pager
+    if [[ $PICK != "status" ]]; then
+      _sysz_systemctl $PICK $CMD --no-pager "$@"
+    else
+      _sysz_systemctl $PICK $CMD "$@"
+    fi
 
   done
