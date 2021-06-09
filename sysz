@@ -77,7 +77,7 @@ _sysz_systemctl() {
   shift
   local cmd=$1
   shift
-  if [[ $EUID -ne 0 && $manager = "--system" ]]; then
+  if [[ $EUID -ne 0 && $manager = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
     sudo systemctl $manager $cmd $unit $@
   else
@@ -143,10 +143,10 @@ _sysz_list() {
 }
 
 (
-  [[ $SYSZ_UNITS = "user" || $SYSZ_UNITS = "all" ]] && _sysz_list --user | sed -e 's/^/[user] /'
-  [[ $SYSZ_UNITS = "system" || $SYSZ_UNITS = "all" ]] && _sysz_list --system | sed -e 's/^/[system] /'
+  [[ $SYSZ_UNITS = "user" || $SYSZ_UNITS = all ]] && _sysz_list --user | sed -e 's/^/[user] /'
+  [[ $SYSZ_UNITS = "system" || $SYSZ_UNITS = all ]] && _sysz_list --system | sed -e 's/^/[system] /'
 ) | fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
-  while read -r PICK && [[ $PICK ]]; do
+  while read -r PICK && [[ -n $PICK ]]; do
 
     ACTIVE_STATE=$(_sysz_show $PICK ActiveState)
     UNIT_FILE_STATE=$(_sysz_show $PICK UnitFileState)
@@ -155,13 +155,13 @@ _sysz_list() {
     if [[ -z $CMD ]]; then
       fzf --reverse --ansi --bind=enter:replace-query+print-query --prompt="Select systemctl command: " < <(
         printf '\033[0;37m%s\033[0m\n' status
-        [[ $ACTIVE_STATE = "active" ]] && printf '\033[0;37m%s\033[0m\n' restart
-        [[ $ACTIVE_STATE != "active" ]] && printf '\033[0;32m%s\033[0m\n' start
-        [[ $ACTIVE_STATE = "active" ]] && printf '\033[0;31m%s\033[0m\n' stop
-        [[ $UNIT_FILE_STATE != "enabled" ]] && printf '\033[0;32m%s\033[0m\n' enable
-        [[ $UNIT_FILE_STATE = "enabled" ]] && printf '\033[0;31m%s\033[0m\n' disable
+        [[ $ACTIVE_STATE = active ]] && printf '\033[0;37m%s\033[0m\n' restart
+        [[ $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m\n' start
+        [[ $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m\n' stop
+        [[ $UNIT_FILE_STATE != enabled ]] && printf '\033[0;32m%s\033[0m\n' enable
+        [[ $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m\n' disable
         printf '\033[0;37m%s\033[0m\n' edit
-        [[ $CAN_RELOAD = "yes" ]] && printf '\033[0;37m%s\033[0m\n' reload
+        [[ $CAN_RELOAD = yes ]] && printf '\033[0;37m%s\033[0m\n' reload
       ) | read -r CMD
     fi
 
@@ -175,7 +175,7 @@ _sysz_list() {
       ;;
     esac
 
-    if [[ $PICK != "status" ]]; then
+    if [[ $PICK != status ]]; then
       _sysz_systemctl $PICK $CMD --no-pager "$@"
     else
       _sysz_systemctl $PICK $CMD "$@"
