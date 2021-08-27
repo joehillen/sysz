@@ -79,15 +79,15 @@ _sysz_systemctl() {
   shift
   if [[ $EUID -ne 0 && $manager = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    sudo systemctl $manager $cmd $unit $@
+    sudo systemctl $manager "$cmd" "$unit" "$@"
   else
-    systemctl $manager $cmd $unit $@
+    systemctl $manager "$cmd" "$unit" "$@"
   fi
 }
 
 _sysz_preview() {
   export SYSTEMD_COLORS=1
-  _sysz_systemctl $@ status --no-pager
+  _sysz_systemctl "$@" status --no-pager
   # TODO timerctl cal
 }
 
@@ -123,7 +123,7 @@ while :; do
     ;;
   preview)
     shift
-    _sysz_preview $@
+    _sysz_preview "$@"
     exit 0
     ;;
   *)
@@ -135,11 +135,15 @@ while :; do
 done
 
 _sysz_show() {
-  _sysz_systemctl $1 $2 show -p $3 --value
+  _sysz_systemctl "$1" "$2" show -p "$3" --value
 }
 
 _sysz_list() {
-  systemctl $1 list-unit-files --no-legend --full --type=service --type=timer --no-pager | awk '{print $1}'
+  systemctl "$1" list-unit-files --no-legend --full --type=service --type=timer --no-pager | awk '{print $1}'
+}
+
+_sysz_journal() {
+  journalctl -xe "$1" "$2"
 }
 
 (
@@ -148,14 +152,15 @@ _sysz_list() {
 ) | fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
   while read -r PICK && [[ -n $PICK ]]; do
 
-    ACTIVE_STATE=$(_sysz_show $PICK ActiveState)
-    UNIT_FILE_STATE=$(_sysz_show $PICK UnitFileState)
-    CAN_RELOAD=$(_sysz_show $PICK CanReload)
+    ACTIVE_STATE=$(_sysz_show "$PICK" ActiveState)
+    UNIT_FILE_STATE=$(_sysz_show "$PICK" UnitFileState)
+    CAN_RELOAD=$(_sysz_show "$PICK" CanReload)
 
     if [[ -z $CMD ]]; then
       fzf --reverse --ansi --bind=enter:replace-query+print-query --prompt="Select systemctl command: " < <(
         printf '\033[0;37m%s\033[0m\n' status
         [[ $ACTIVE_STATE = active ]] && printf '\033[0;37m%s\033[0m\n' restart
+        [[ $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m\n' start
         [[ $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m\n' start
         [[ $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m\n' stop
         [[ $UNIT_FILE_STATE != enabled ]] && printf '\033[0;32m%s\033[0m\n' enable
@@ -175,10 +180,12 @@ _sysz_list() {
       ;;
     esac
 
-    if [[ $PICK != status ]]; then
-      _sysz_systemctl $PICK $CMD --no-pager "$@"
+    if [[ $PICK = status ]]; then
+      _sysz_journal "" "$PICK"
+    elif [[ $PICK != status ]]; then
+      _sysz_systemctl "$PICK" "$CMD" --no-pager "$@"
     else
-      _sysz_systemctl $PICK $CMD "$@"
+      _sysz_systemctl "$PICK" "$CMD" "$@"
     fi
 
   done
