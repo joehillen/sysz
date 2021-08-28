@@ -89,6 +89,36 @@ _sysz_list_cmd() {
 
 }
 
+_sysz_sort() {
+  while IFS= read -r string; do
+    if [[ $string =~ \[user\].*\.service$ ]]; then
+      # user services
+      echo "0 $string"
+    elif [[ $string =~ \.service$ ]]; then
+      # system services
+      echo "1 $string"
+    elif [[ $string =~ \[user\].*\.timers$ ]]; then
+      # user timers
+      echo "2 $string"
+    elif [[ $string =~ \.timer$ ]]; then
+      # system timers
+      echo "3 $string"
+    elif [[ $string =~ \[user\].*\.socket$ ]]; then
+      # user sockets
+      echo "4 $string"
+    elif [[ $string =~ \.socket$ ]]; then
+      # system sockets
+      echo "5 $string"
+    elif [[ $string =~ \[user\] ]]; then
+      # then user units based on file extenions
+      echo "7${string##*.} $string"
+    else
+      # then the rest based on file extension
+      echo "8${string##*.} $string"
+    fi
+  done | sort | cut -d' ' -f2-
+}
+
 _sysz_list() {
   if [[ $UNITS = user || $UNITS = all ]]; then
     _sysz_list_cmd --user | sed -e 's/^/[user] /'
@@ -184,7 +214,7 @@ done
 
 ARGS=$*
 
-_sysz_list |
+_sysz_list | _sysz_sort |
   fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
   while read -r UNIT && [[ -n $UNIT ]]; do
 
