@@ -188,9 +188,9 @@ _sysz_list |
   fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
   while read -r UNIT && [[ -n $UNIT ]]; do
 
-    ACTIVE_STATE=$(_sysz_show "$UNIT" ActiveState)
-    UNIT_FILE_STATE=$(_sysz_show "$UNIT" UnitFileState)
-    CAN_RELOAD=$(_sysz_show "$UNIT" CanReload)
+    ACTIVE_STATE=$(_sysz_show $UNIT ActiveState)
+    UNIT_FILE_STATE=$(_sysz_show $UNIT UnitFileState)
+    CAN_RELOAD=$(_sysz_show $UNIT CanReload)
 
     if [[ -z $CMD ]]; then
       fzf \
