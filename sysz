@@ -1,5 +1,4 @@
 #!/bin/bash
-# shellcheck disable=SC2086
 
 shopt -s lastpipe
 
@@ -32,48 +31,64 @@ CMD:
   en, enable             systemctl enable --now <unit>
   d, dis, disable        systemctl disable --now <unit>
 
-If no command is given, one can be chosen interactively based on state.
+If no command is given, one or more can be chosen interactively.
+
+If only one unit is chosen, available commands will be presented
+based on the state of the unit.
 
 Examples:
   $PROG --system stat      Get the status of a system unit
-  $PROG --user --edit      Edit a user unit
+  $PROG --user edit        Edit a user unit
   $PROG start              Start a unit
+  $PROG -s -a stop         Stop an active system unit
   $PROG -u s -n100         Show status of a user unit with 100 log lines.
 EOF
 
   exit 1
 }
 
-_sysz_manager() {
-  if [[ $1 = '[system]' ]]; then
-    echo --system
-  elif [[ $1 = '[user]' ]]; then
-    echo --user
+_sysz_systemctl() {
+  if [[ $EUID -ne 0 && $1 = --system ]]; then
+    # only run sudo if we aren't root and it's a system unit
+    [[ $VERBOSE = true ]] && echo '>' sudo systemctl "$@"
+    sudo systemctl "$@"
+  else
+    [[ $VERBOSE = true ]] && echo '>' systemctl "$@"
+    systemctl "$@"
   fi
 }
 
-_sysz_systemctl() {
-  manager=$(_sysz_manager "$1")
-  shift
-  local unit=$1
-  shift
-  local cmd=$1
-  shift
-  if [[ $EUID -ne 0 && $manager = --system ]]; then
+_sysz_journalctl() {
+  if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    sudo systemctl "$manager" "$cmd" "$unit" "$@"
+    [[ $VERBOSE = true ]] && echo '>' sudo journalctl "$@"
+    sudo journalctl "$@"
   else
-    systemctl "$manager" "$cmd" "$unit" "$@"
+    [[ $VERBOSE = true ]] && echo '>' journalctl "$@"
+    journalctl "$@"
   fi
 }
 
 _sysz_preview() {
-  export SYSTEMD_COLORS=1
-  _sysz_systemctl "$1" status "$2" --no-pager
+  case ${1%% *} in
+  '[user]')
+    MANAGER=--user
+    ;;
+  '[system]')
+    MANAGER=--system
+    ;;
+  *)
+    echo "ERROR: unknown manager: $PICK" >&2
+    exit 1
+    ;;
+  esac
+  UNIT=${1##* }
+
+  SYSTEMD_COLORS=1 _sysz_systemctl $MANAGER status "$UNIT" --no-pager
 }
 
 _sysz_show() {
-  _sysz_systemctl "$1" "$2" show -p "$3" --value
+  _sysz_systemctl "$1" show "$2" -p "$3" --value
 }
 
 _sysz_list_cmd() {
@@ -129,20 +144,10 @@ _sysz_list() {
   fi
 }
 
-_sysz_journal() {
-  manager=$(_sysz_manager "$1")
-  shift
-  unit=$1
-  shift
-  if [[ $EUID -ne 0 && $manager = --system ]]; then
-    # only run sudo if we aren't root and it's a system unit
-    sudo journalctl "$manager" "--unit=$unit" -xe "$@"
-  else
-    journalctl "$manager" "--unit=$unit" -xe "$@"
-  fi
-}
+# main
 
 UNITS=all
+ACTIVE=
 while [[ -n $1 ]]; do
   case $1 in
   -u | --user)
@@ -157,6 +162,10 @@ while [[ -n $1 ]]; do
     ACTIVE="--state=active"
     shift
     ;;
+  -v | --verbose)
+    VERBOSE=true
+    shift
+    ;;
   -h | --help)
     _sysz_help
     ;;
@@ -169,6 +178,11 @@ done
 CMD=
 while :; do
   case $1 in
+  _fzf_preview)
+    shift
+    _sysz_preview "$@"
+    exit 0
+    ;;
   h | help)
     _sysz_help
     ;;
@@ -188,11 +202,6 @@ while :; do
   d | dis)
     CMD=disable
     ;;
-  preview)
-    shift
-    _sysz_preview "$@"
-    exit 0
-    ;;
   j)
     CMD=journal
     ;;
@@ -205,70 +214,105 @@ while :; do
   *)
     # assume the next argument is a command name
     CMD=$1
-    break
     ;;
   esac
   shift
   break
 done
 
-ARGS=$*
+declare -a ARGS
+ARGS=("$@")
 
-_sysz_list | _sysz_sort |
-  fzf --multi --ansi --preview="'${BASH_SOURCE[0]}' preview {}" |
-  while read -r UNIT && [[ -n $UNIT ]]; do
+declare -a PICKS
+_sysz_list |
+  _sysz_sort |
+  fzf \
+    --multi \
+    --ansi \
+    --prompt="Units: " \
+    --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" |
+  readarray -t PICKS
 
-    ACTIVE_STATE=$(_sysz_show $UNIT ActiveState)
-    UNIT_FILE_STATE=$(_sysz_show $UNIT UnitFileState)
-    CAN_RELOAD=$(_sysz_show $UNIT CanReload)
+if [[ ${#PICKS[@]} -eq 0 ]]; then
+  exit 1
+fi
 
-    if [[ -z $CMD ]]; then
-      fzf \
-        --reverse \
-        --ansi \
-        --bind=enter:replace-query+print-query \
-        --prompt="Select systemctl command: " < <(
-          echo status
-          [[ $ACTIVE_STATE = active ]] && echo restart
-          [[ $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m\n' start
-          [[ $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m\n' stop
-          [[ $UNIT_FILE_STATE != enabled ]] && printf '\033[0;32m%s\033[0m\n' enable
-          [[ $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m\n' disable
-          [[ $CAN_RELOAD = yes ]] && printf '\033[0;37m%s\033[0m\n' reload
-          echo edit
-          echo journal
-          echo follow
-        ) |
-        read -r CMD
-    fi
+printf -v PICKS_STR '%s\n' "${PICKS[@]}"
 
-    if [[ -z $CMD ]]; then
-      exit 1
-    fi
+declare -a CMDS
+if [[ -n $CMD ]]; then
+  CMDS=("$CMD")
+else
+  fzf \
+    --multi \
+    --no-info \
+    --reverse \
+    --ansi \
+    --preview="echo '$PICKS_STR'" \
+    --prompt="Commands: " \
+    < <(
+      echo status
+      [[ $ACTIVE_STATE = active || ${#PICKS[@]} -gt 1 ]] && echo restart
+      [[ $ACTIVE_STATE != active || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;32m%s\033[0m\n' start
+      [[ $ACTIVE_STATE = active || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;31m%s\033[0m\n' stop
+      [[ $UNIT_FILE_STATE != enabled || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;32m%s\033[0m\n' enable
+      [[ $UNIT_FILE_STATE != enabled || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;32m%s\033[0m\n' 'enable --now'
+      [[ $UNIT_FILE_STATE = enabled || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;31m%s\033[0m\n' disable
+      [[ $UNIT_FILE_STATE = enabled || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;31m%s\033[0m\n' 'disable --now'
+      [[ $CAN_RELOAD = yes || ${#PICKS[@]} -gt 1 ]] && printf '\033[0;37m%s\033[0m\n' reload
+      echo cat
+      echo edit
+      echo journal
+      echo follow
+    ) |
+    readarray -t CMDS
+fi
 
+if [[ ${#CMDS[@]} -eq 0 ]]; then
+  exit 1
+fi
+
+for PICK in "${PICKS[@]}"; do
+  case ${PICK%% *} in
+  '[user]')
+    MANAGER=--user
+    ;;
+  '[system]')
+    MANAGER=--system
+    ;;
+  *)
+    echo "ERROR: unknown manager: $PICK" >&2
+    exit 1
+    ;;
+  esac
+  UNIT=${PICK##* }
+
+  ACTIVE_STATE=$(_sysz_show $MANAGER "$UNIT" ActiveState)
+  UNIT_FILE_STATE=$(_sysz_show $MANAGER "$UNIT" UnitFileState)
+  CAN_RELOAD=$(_sysz_show $MANAGER "$UNIT" CanReload)
+
+  for CMD in "${CMDS[@]}"; do
     case $CMD in
-    enable | disable)
-      ARGS="$ARGS --now"
-      ;;
-    esac
-
-    case $CMD in
-    follow)
-      _sysz_journal $UNIT -f
-      ;;
     journal)
-      _sysz_journal $UNIT
+      _sysz_journalctl $MANAGER -xe "--unit=$UNIT"
+      ;;
+    follow)
+      _sysz_journalctl $MANAGER -xef "--unit=$UNIT"
       ;;
     status)
-      _sysz_systemctl $UNIT "$CMD" --no-pager
+      # shellcheck disable=2086
+      _sysz_systemctl $MANAGER $CMD "$UNIT" --no-pager "${ARGS[@]}"
       ;;
     cat)
-      _sysz_systemctl $UNIT "$CMD"
+      # shellcheck disable=2086
+      _sysz_systemctl $MANAGER $CMD "$UNIT" "${ARGS[@]}"
       ;;
     *)
-      _sysz_systemctl $UNIT "$CMD"
-      _sysz_systemctl $UNIT status
+      # shellcheck disable=2086
+      _sysz_systemctl $MANAGER $CMD "$UNIT" "${ARGS[@]}"
+      _sysz_systemctl $MANAGER status "$UNIT" --no-pager
       ;;
     esac
-
   done
+
+done
