@@ -36,6 +36,10 @@ If no command is given, one or more can be chosen interactively.
 If only one unit is chosen, available commands will be presented
 based on the state of the unit.
 
+$PROG stores history in the file specificed by the
+environment variable SYSZ_HISTORY
+Default: $XDG_CACHE_HOME/sysz/history
+
 Examples:
   $PROG --system stat      Get the status of a system unit
   $PROG --user edit        Edit a user unit
@@ -223,12 +227,17 @@ done
 declare -a ARGS
 ARGS=("$@")
 
+SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
+mkdir -p "$(dirname "$SYSZ_HISTORY")"
+touch "$SYSZ_HISTORY"
+
 declare -a PICKS
 _sysz_list |
   _sysz_sort |
   fzf \
     --multi \
     --ansi \
+    --history="$SYSZ_HISTORY" \
     --prompt="Units: " \
     --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" |
   readarray -t PICKS
