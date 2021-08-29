@@ -274,6 +274,7 @@ touch "$SYSZ_HISTORY"
 
 _sysz_list_units |
   fzf \
+    --exact \
     --multi \
     --ansi \
     --reverse \
