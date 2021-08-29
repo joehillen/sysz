@@ -10,7 +10,7 @@ A utility for using systemctl interactively via fzf.
 
 Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
 
-Select multiple units using TAB
+Select multiple units and commands using TAB
 
 sudo is automatically invoked if necessary.
 

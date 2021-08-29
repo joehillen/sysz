@@ -7,14 +7,16 @@ An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/j
 # Features
 
 - See and filter both system and user units simultaneously
-- Runs `sudo` automatically and only if necessary
-- History (`Ctrl-p` and `Ctrl-n`)
-- Shows status after commands
 - Supports all units types
 - Units ordered by service, timer, socket, and the rest
-- Select multiple units using `TAB` key
-- Select multiple commands using the `TAB` key
-- Only shows prompts commands based on current state (show "start" only if not running, etc)
+- Runs `sudo` automatically and only if necessary
+- History (`Ctrl-p` and `Ctrl-n`)
+- Support short versions of systemctl commands to reduce typing
+- Runs status after other commands (start, stop, restart, etc)
+- Select multiple units and commands using `TAB` key
+- Only prompts commands based on current state
+  (e.g. show "start" only if the unit is active)
+- Can filter units based on their state using the `--state` option
 
 # Usage
 
@@ -23,21 +25,21 @@ A utility for using systemctl interactively via fzf.
 
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
-Select multiple units using TAB
-
-Extra ARGS are passed to the systemctl command
-for each selected unit.
+Select multiple units and commands using TAB
 
 sudo is automatically invoked if necessary.
 
-OPTS:
-  -u, --user             Only show --user units
-  -s, --sys, --system    Only show --user units
-  --state [STATE]        Only show units in STATE
-  -v, --verbose          Print the systemctl command
-  -h, --help             Print this message
+If only one unit is chosen, available commands will be presented
+based on the state of the unit.
 
-If no option is given, both system and user units are shown.
+OPTS:
+  -u, --user               Only show --user units
+  --sys, --system          Only show --system units
+  -s STATE, --state STATE  Only show units in STATE (Repeatable)
+  -v, --verbose            Print the systemctl command
+  -h, --help               Print this message
+
+  If no options are given, both system and user units are shown.
 
 CMD:
   start                  systemctl start <unit>
@@ -49,27 +51,27 @@ CMD:
   en, enable             systemctl enable --now <unit>
   d, dis, disable        systemctl disable --now <unit>
 
-If no command is given, one or more can be chosen interactively.
+  If no command is given, one or more can be chosen interactively.
 
-If only one unit is chosen, available commands will be presented
-based on the state of the unit.
+ARGS are passed to the systemctl command for each selected unit.
 
-sysz stores history in the file specificed by the
-environment variable SYSZ_HISTORY
-Default: /home/joe/.cache/sysz/history
+History:
+  sysz stores history by default in:
+  Default: /home/joe/.cache/sysz/history or ~/.cache/sysz/history
+  This can be changed with the environment variable: SYSZ_HISTORY
 
 Examples:
   sysz -u                      User units
-  sysz -s --state active       Active system units
+  sysz -sys -s active          Active system units
   sysz --user --state failed   Failed user units
 
 Examples with commands:
-  sysz start                     Start a unit
-  sysz --sys s                   Get the status of a system unit
-  sysz --user edit               Edit a user unit
-  sysz s -n100                   Show 100 log lines of units
-  sysz -s --state active stop    Stop an active system unit
-  sysz --state failed r          Restart failed units
+  sysz start                  Start a unit
+  sysz --sys s                Get the status of system units
+  sysz --user edit            Edit user units
+  sysz s -- -n100             Show status with 100 log lines
+  sysz -sys -s active stop    Stop an active system unit
+  sysz -u --state failed r    Restart failed user units
 ```
 
 # Requirements
