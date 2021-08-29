@@ -15,7 +15,7 @@ An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/j
 - Runs status after other commands (start, stop, restart, etc)
 - Select multiple units and commands using `TAB` key
 - Only prompts commands based on current state
-  (e.g. show "start" only if the unit is active)
+  (e.g. show "start" and "restart" only if the unit is inactive)
 - Can filter units based on their state using the `--state` option
 
 # Usage
@@ -46,10 +46,10 @@ CMD:
   stop                   systemctl stop <unit>
   r, restart             systemctl restart <unit>
   s, stat, status        systemctl status <unit>
-  ed, edit               systemctl edit --full <unit>
+  ed, edit               systemctl edit <unit>
   reload                 systemctl reload <unit>
-  en, enable             systemctl enable --now <unit>
-  d, dis, disable        systemctl disable --now <unit>
+  en, enable             systemctl enable <unit>
+  d, dis, disable        systemctl disable <unit>
 
   If no command is given, one or more can be chosen interactively.
 
