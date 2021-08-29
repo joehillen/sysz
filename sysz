@@ -165,13 +165,13 @@ _sysz_list_cmd() {
   (
     systemctl list-units "${args[@]}"
     systemctl list-unit-files "${args[@]}"
-  ) | awk '{print $1}'
+  ) | awk '{print $1}' | sort -u
 }
 
 _sysz_list_units() {
   for MANAGER in "${MANAGERS[@]}"; do
     _sysz_list_cmd "--$MANAGER" | sed -e "s/^/[$MANAGER] /"
-  done | uniq | _sysz_sort
+  done | _sysz_sort
 }
 
 # main
