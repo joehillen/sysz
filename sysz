@@ -219,7 +219,7 @@ fi
 
 declare CMD
 declare -a ARGS
-while :; do
+while [[ -n $1 ]]; do
   case $1 in
   _fzf_preview)
     shift
@@ -257,6 +257,11 @@ while :; do
   --)
     shift
     ARGS=("$@")
+    break
+    ;;
+  -*)
+    echo "ERROR: Unknown option: $1" 2>&1
+    exit 1
     ;;
   *)
     # assume the next argument is a command name
@@ -264,7 +269,6 @@ while :; do
     ;;
   esac
   shift
-  break
 done
 
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
