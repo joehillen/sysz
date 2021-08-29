@@ -31,10 +31,10 @@ CMD:
   stop                   systemctl stop <unit>
   r, restart             systemctl restart <unit>
   s, stat, status        systemctl status <unit>
-  ed, edit               systemctl edit --full <unit>
+  ed, edit               systemctl edit <unit>
   reload                 systemctl reload <unit>
-  en, enable             systemctl enable --now <unit>
-  d, dis, disable        systemctl disable --now <unit>
+  en, enable             systemctl enable <unit>
+  d, dis, disable        systemctl disable <unit>
 
   If no command is given, one or more can be chosen interactively.
 
