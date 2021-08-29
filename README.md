@@ -1,10 +1,14 @@
 # [sysz](https://github.com/joehillen/sysz)
 
-VERSON: `1.0.0`
-
 An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/junegunn/fzf) written entirely in Bash.
 
+# Demo
+
+[![asciicast](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa.svg)](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa)
+
 # Features
+
+VERSION: 1.0.0
 
 - See and filter both system and user units simultaneously
 - Supports all units types
@@ -98,13 +102,8 @@ chmod +x ~/.bin/sysz
 ```sh
 git clone https://github.com/joehillen/sysz.git
 cd sysz
-sudo make install
+sudo make install # /usr/local/bin/sysz
 ```
-
-# Demo
-
-TODO
-[![asciicast](https://asciinema.org/a/390806.svg)](https://asciinema.org/a/390806)
 
 # Acknowledgements
 
