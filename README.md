@@ -88,7 +88,9 @@ Examples with commands:
 
 ## Arch Linux
 
-TODO
+```
+paru -S sysz
+```
 
 ## Direct Download
 
