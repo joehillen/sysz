@@ -43,7 +43,9 @@ ${BLOCK}
 
 ## Arch Linux
 
-TODO
+${BLOCK}
+paru -S sysz
+${BLOCK}
 
 ## Direct Download
 
