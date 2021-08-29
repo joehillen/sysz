@@ -8,7 +8,7 @@ _sysz_help() {
   cat >&2 <<EOF
 A utility for using systemctl interactively via fzf.
 
-Usage: $PROG [OPTS...] [CMD] [ARGS...]
+Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
 
 Select multiple units using TAB
 
@@ -218,6 +218,7 @@ if [[ -n $STATE ]] && ! systemctl --state=help | grep -q "^$STATE "; then
 fi
 
 declare CMD
+declare -a ARGS
 while :; do
   case $1 in
   _fzf_preview)
@@ -253,6 +254,10 @@ while :; do
   c)
     CMD="cat"
     ;;
+  --)
+    shift
+    ARGS=("$@")
+    ;;
   *)
     # assume the next argument is a command name
     CMD=$1
@@ -261,9 +266,6 @@ while :; do
   shift
   break
 done
-
-declare -a ARGS
-ARGS=("$@")
 
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
