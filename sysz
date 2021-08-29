@@ -124,29 +124,33 @@ _sysz_sort() {
   while IFS= read -r string; do
     if [[ $string =~ \[user\].*\.service$ ]]; then
       # user services
-      echo "0 $string"
+      N=0
     elif [[ $string =~ \.service$ ]]; then
       # system services
-      echo "1 $string"
+      N=1
     elif [[ $string =~ \[user\].*\.timer$ ]]; then
       # user timers
-      echo "2 $string"
+      N=2
     elif [[ $string =~ \.timer$ ]]; then
       # system timers
-      echo "3 $string"
+      N=3
     elif [[ $string =~ \[user\].*\.socket$ ]]; then
       # user sockets
-      echo "4 $string"
+      N=4
     elif [[ $string =~ \.socket$ ]]; then
       # system sockets
-      echo "5 $string"
+      N=5
     elif [[ $string =~ \[user\] ]]; then
       # then user units based on file extenions
-      echo "6${string##*.} $string"
+      N=6
     else
       # then the rest based on file extension
-      echo "9${string##*.} $string"
+      N=7
     fi
+    TYPE=${string##*.}
+    UNIT=${string##* }
+    UNIT_WITHOUT_DASH=${UNIT//-/}
+    echo "$N$TYPE$UNIT_WITHOUT_DASH $string"
   done | sort -f | cut -d' ' -f2-
 }
 
