@@ -281,7 +281,8 @@ _sysz_list_units |
     --no-sort \
     --history="$SYSZ_HISTORY" \
     --prompt="Units: " \
-    --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" |
+    --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+    --preview-window=70% |
   readarray -t PICKS
 
 if [[ ${#PICKS[@]} -eq 0 ]]; then
