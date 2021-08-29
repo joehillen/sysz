@@ -5,7 +5,7 @@ all: clean README.md
 clean:
 	rm -f README.md
 
-README.md: README.sh
+README.md: README.sh sysz
 	./README.sh
 
 install:
