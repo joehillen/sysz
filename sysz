@@ -12,19 +12,19 @@ Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
 
 Select multiple units using TAB
 
-Extra ARGS are passed to the systemctl command
-for each selected unit.
-
 sudo is automatically invoked if necessary.
 
-OPTS:
-  -u, --user             Only show --user units
-  -s, --sys, --system    Only show --user units
-  --state [STATE]        Only show units in STATE
-  -v, --verbose          Print the systemctl command
-  -h, --help             Print this message
+If only one unit is chosen, available commands will be presented
+based on the state of the unit.
 
-If no option is given, both system and user units are shown.
+OPTS:
+  -u, --user               Only show --user units
+  --sys, --system          Only show --system units
+  -s STATE, --state STATE  Only show units in STATE (Repeatable)
+  -v, --verbose            Print the systemctl command
+  -h, --help               Print this message
+
+  If no options are given, both system and user units are shown.
 
 CMD:
   start                  systemctl start <unit>
@@ -36,27 +36,27 @@ CMD:
   en, enable             systemctl enable --now <unit>
   d, dis, disable        systemctl disable --now <unit>
 
-If no command is given, one or more can be chosen interactively.
+  If no command is given, one or more can be chosen interactively.
 
-If only one unit is chosen, available commands will be presented
-based on the state of the unit.
+ARGS are passed to the systemctl command for each selected unit.
 
-$PROG stores history in the file specificed by the
-environment variable SYSZ_HISTORY
-Default: $XDG_CACHE_HOME/sysz/history
+History:
+  $PROG stores history by default in:
+  Default: $XDG_CACHE_HOME/sysz/history or ~/.cache/sysz/history
+  This can be changed with the environment variable: SYSZ_HISTORY
 
 Examples:
   $PROG -u                      User units
-  $PROG -s --state active       Active system units
+  $PROG -sys -s active          Active system units
   $PROG --user --state failed   Failed user units
 
 Examples with commands:
-  $PROG start                     Start a unit
-  $PROG --sys s                   Get the status of a system unit
-  $PROG --user edit               Edit a user unit
-  $PROG s -n100                   Show 100 log lines of units
-  $PROG -s --state active stop    Stop an active system unit
-  $PROG --state failed r          Restart failed units
+  $PROG start                  Start a unit
+  $PROG --sys s                Get the status of system units
+  $PROG --user edit            Edit user units
+  $PROG s -- -n100             Show status with 100 log lines
+  $PROG -sys -s active stop    Stop an active system unit
+  $PROG -u --state failed r    Restart failed user units
 EOF
 
   exit 1
@@ -93,13 +93,13 @@ _sysz_preview() {
     MANAGER=--system
     ;;
   *)
-    echo "ERROR: unknown manager: $1" >&2
+    echo "ERROR: Unknown manager: $1" >&2
     exit 1
     ;;
   esac
   UNIT=${1##* }
 
-  SYSTEMD_COLORS=1 _sysz_systemctl $MANAGER status "$UNIT" --no-pager
+  SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
 }
 
 _sysz_show() {
@@ -112,7 +112,7 @@ _sysz_show() {
     MANAGER=--system
     ;;
   *)
-    echo "ERROR: unknown manager: $PICK" >&2
+    echo "ERROR: Unknown manager: $PICK" >&2
     exit 1
     ;;
   esac
@@ -147,13 +147,13 @@ _sysz_sort() {
       # then the rest based on file extension
       echo "9${string##*.} $string"
     fi
-  done | sort | cut -d' ' -f2-
+  done | sort -f | cut -d' ' -f2-
 }
 
 _sysz_list_cmd() {
-  local ARGS
-  declare -a ARGS
-  ARGS=(
+  local args
+  declare -a args
+  args=(
     --all
     --no-legend
     --full
@@ -163,40 +163,34 @@ _sysz_list_cmd() {
     "$@"
   )
   (
-    systemctl list-units "${ARGS[@]}"
-    systemctl list-unit-files "${ARGS[@]}"
+    systemctl list-units "${args[@]}"
+    systemctl list-unit-files "${args[@]}"
   ) | awk '{print $1}'
 }
 
 _sysz_list_units() {
-  (
-    if [[ $UNITS = user || $UNITS = all ]]; then
-      _sysz_list_cmd --user | sed -e 's/^/[user] /'
-    fi
-
-    if [[ $UNITS = system || $UNITS = all ]]; then
-      _sysz_list_cmd --system | sed -e 's/^/[system] /'
-    fi
-  ) | uniq | _sysz_sort
+  for MANAGER in "${MANAGERS[@]}"; do
+    _sysz_list_cmd "--$MANAGER" | sed -e "s/^/[$MANAGER] /"
+  done | uniq | _sysz_sort
 }
 
 # main
 
-UNITS=all
+MANAGERS=(user system)
 declare -a STATES
 while [[ -n $1 ]]; do
   case $1 in
   -u | --user)
-    UNITS=user
+    MANAGERS=(user)
     shift
     ;;
   -s | --sys | --system)
-    UNITS=system
+    MANAGERS=(system)
     shift
     ;;
   --state)
+    STATES+=("--state=$2")
     shift
-    STATES+=("--state=$1")
     shift
     ;;
   -v | --verbose)
@@ -212,10 +206,13 @@ while [[ -n $1 ]]; do
   esac
 done
 
-if [[ -n $STATE ]] && ! systemctl --state=help | grep -q "^$STATE "; then
-  echo "ERROR: unknown state: $STATE" >&2
-  exit 1
-fi
+for STATE in "${STATES[@]}"; do
+  STATE="${STATE##*=}"
+  if [[ -n $STATE ]] && ! systemctl --state=help | grep -q "^$STATE"; then
+    echo "ERROR: Invalid state: $STATE" >&2
+    exit 1
+  fi
+done
 
 declare CMD
 declare -a ARGS
@@ -345,7 +342,7 @@ for PICK in "${PICKS[@]}"; do
     MANAGER=--system
     ;;
   *)
-    echo "ERROR: unknown manager: $PICK" >&2
+    echo "ERROR: Unknown manager: $PICK" >&2
     exit 1
     ;;
   esac
