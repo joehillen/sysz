@@ -358,16 +358,16 @@ for PICK in "${PICKS[@]}"; do
       ;;
     status)
       # shellcheck disable=2086
-      _sysz_systemctl $MANAGER $CMD "$UNIT" --no-pager "${ARGS[@]}"
+      SYSTEMD_COLORS=1 systemctl $MANAGER $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
     cat)
       # shellcheck disable=2086
-      _sysz_systemctl $MANAGER $CMD "$UNIT" "${ARGS[@]}"
+      _sysz_systemctl $MANAGER $CMD "${ARGS[@]}" -- "$UNIT"
       ;;
     *)
       # shellcheck disable=2086
-      _sysz_systemctl $MANAGER $CMD "$UNIT" "${ARGS[@]}" || CODE=$?
-      _sysz_systemctl $MANAGER status "$UNIT" --no-pager
+      _sysz_systemctl $MANAGER $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
+      SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
       if [[ ${#PICKS[@]} -eq 1 ]]; then
         exit $CODE
       fi
