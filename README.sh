@@ -1,25 +1,27 @@
+#!/bin/bash
 BLOCK='```'
-TICK='`'
+T='`'
 
-
-DOC=$(cat <<EOF
+cat <<EOF >README.md
 # [sysz](https://github.com/joehillen/sysz)
 
-VERSON: ${TICK}1.0.0${TICK}
+VERSON: ${T}1.0.0${T}
 
 An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/junegunn/fzf) written entirely in Bash.
 
 # Features
 
 - See and filter both system and user units simultaneously
-- Runs ${TICK}sudo${TICK} automatically and only if necessary
-- History (${TICK}Ctrl-p${TICK} and ${TICK}Ctrl-n${TICK})
-- Shows status after commands
 - Supports all units types
 - Units ordered by service, timer, socket, and the rest
-- Select multiple units using ${TICK}TAB${TICK} key
-- Select multiple commands using the ${TICK}TAB${TICK} key
-- Only shows prompts commands based on current state (show "start" only if not running, etc)
+- Runs ${T}sudo${T} automatically and only if necessary
+- History (${T}Ctrl-p${T} and ${T}Ctrl-n${T})
+- Support short versions of systemctl commands to reduce typing
+- Runs status after other commands (start, stop, restart, etc)
+- Select multiple units and commands using ${T}TAB${T} key
+- Only prompts commands based on current state
+  (e.g. show "start" and "restart" only if the unit is inactive)
+- Can filter units based on their state using the ${T}--state${T} option
 
 # Usage
 
@@ -63,6 +65,3 @@ TODO
 
 Inspired by [fuzzy-sys](https://github.com/NullSense/fuzzy-sys) by [NullSense](https://github.com/NullSense/)
 EOF
-)
-
-printf "$DOC" > README.md
