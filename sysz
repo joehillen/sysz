@@ -3,6 +3,8 @@
 set -f # disable globbing
 shopt -s lastpipe
 
+SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
+
 _sysz_help() {
   PROG=$(basename "$0")
   cat >&2 <<EOF
@@ -41,8 +43,7 @@ CMD:
 ARGS are passed to the systemctl command for each selected unit.
 
 History:
-  $PROG stores history in:
-  $XDG_CACHE_HOME/sysz/history or ~/.cache/sysz/history
+  $PROG is stored in $SYSZ_HISTORY
   This can be changed with the environment variable: SYSZ_HISTORY
 
   Use CTRL-p and CTRL-n to navigate through history.
@@ -274,7 +275,6 @@ while [[ -n $1 ]]; do
   shift
 done
 
-SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
 

@@ -60,8 +60,7 @@ CMD:
 ARGS are passed to the systemctl command for each selected unit.
 
 History:
-  sysz stores history in:
-  $XDG_CACHE_HOME/sysz/history or ~/.cache/sysz/history
+  sysz is stored in $XDG_CACHE_HOME/sysz/history
   This can be changed with the environment variable: SYSZ_HISTORY
 
   Use CTRL-p and CTRL-n to navigate through history.
