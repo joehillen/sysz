@@ -1,4 +1,4 @@
-.PHONY: all install
+.PHONY: all install clean
 
 all: clean README.md
 
