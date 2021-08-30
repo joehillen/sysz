@@ -1,6 +1,5 @@
 #!/bin/bash
 BLOCK='```'
-T='`'
 
 cat <<EOF >README.md
 # [sysz](https://github.com/joehillen/sysz)
@@ -18,14 +17,14 @@ VERSION: $(cat VERSION)
 - See and filter both system and user units simultaneously
 - Supports all units types
 - Units ordered by service, timer, socket, and the rest
-- Runs ${T}sudo${T} automatically and only if necessary
-- History (${T}Ctrl-p${T} and ${T}Ctrl-n${T})
+- Runs \`sudo\` automatically and only if necessary
+- History (\`Ctrl-p\` and \`Ctrl-n\`)
 - Support short versions of systemctl commands to reduce typing
 - Runs status after other commands (start, stop, restart, etc)
-- Select multiple units and commands using ${T}TAB${T} key
+- Select multiple units and commands using \`TAB\` key
 - Only prompts commands based on current state
   (e.g. show "start" and "restart" only if the unit is inactive)
-- Can filter units based on their state using the ${T}--state${T} option
+- Can filter units based on their state using the \`--state\` option
 
 # Usage
 
