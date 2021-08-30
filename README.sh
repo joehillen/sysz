@@ -5,7 +5,7 @@ T='`'
 cat <<EOF >README.md
 # [sysz](https://github.com/joehillen/sysz)
 
-An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/junegunn/fzf) written entirely in Bash.
+A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Demo
 
@@ -30,7 +30,7 @@ VERSION: $(cat VERSION)
 # Usage
 
 ${BLOCK}text
-$(./sysz -h 2>&1)
+$(./sysz -h 2>&1 | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
 ${BLOCK}
 
 # Requirements

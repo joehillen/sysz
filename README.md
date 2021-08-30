@@ -1,6 +1,6 @@
 # [sysz](https://github.com/joehillen/sysz)
 
-An interactive fuzzy matching TUI for systemctl using [fzf](https://github.com/junegunn/fzf) written entirely in Bash.
+A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Demo
 
@@ -29,17 +29,17 @@ A utility for using systemctl interactively via fzf.
 
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
-Select multiple units and commands using TAB
+Select multiple units and commands using TAB.
 
-sudo is automatically invoked if necessary.
+sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
-based on the state of the unit.
+based on the state of the unit (e.g. start is only shows if active).
 
 OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
-  -s STATE, --state STATE  Only show units in STATE (Repeatable)
+  -s STATE, --state STATE  Only show units in STATE (repeatable)
   -v, --verbose            Print the systemctl command
   -h, --help               Print this message
 
@@ -60,9 +60,11 @@ CMD:
 ARGS are passed to the systemctl command for each selected unit.
 
 History:
-  sysz stores history by default in:
-  Default: /home/joe/.cache/sysz/history or ~/.cache/sysz/history
+  sysz stores history in:
+  $XDG_CACHE_HOME/sysz/history or ~/.cache/sysz/history
   This can be changed with the environment variable: SYSZ_HISTORY
+
+  Use CTRL-p and CTRL-n to navigate through history.
 
 Examples:
   sysz -u                      User units
