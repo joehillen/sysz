@@ -143,7 +143,7 @@ _sysz_show() {
     exit 1
     ;;
   esac
-  UNIT=${1##* }
+  local UNIT=${1##* }
   _sysz_systemctl $MANAGER show "$UNIT" -p "$2" --value
 }
 
@@ -331,14 +331,28 @@ declare -a CMDS
 if [[ -n $CMD ]]; then
   CMDS=("$CMD")
 else
-  if [[ ${#PICKS[@]} -eq 1 ]]; then
-    ACTIVE_STATE=$(_sysz_show "${PICKS[0]}" ActiveState)
-    UNIT_FILE_STATE=$(_sysz_show "${PICKS[0]}" UnitFileState)
-    CAN_RELOAD=$(_sysz_show "${PICKS[0]}" CanReload)
-    PREVIEW="'${BASH_SOURCE[0]}' _fzf_preview '${PICKS[0]}'"
-  else
+
+  if [[ ${#PICKS[@]} -gt 1 ]]; then
     PREVIEW="echo '$PICKS_STR'"
     MULTI=true
+  else
+    UNIT=${PICKS[0]}
+
+    if [[ $UNIT = *@.* ]]; then
+      read -r -p "$UNIT requires a parameter: " PARAM ||
+        if [[ -z $PARAM ]]; then
+          echo "ERROR: $UNIT requires a parameter"
+          exit 1
+        fi
+
+      UNIT=${UNIT/\@/\@${PARAM}}
+      PICKS[0]=$UNIT
+    fi
+
+    ACTIVE_STATE=$(_sysz_show "$UNIT" ActiveState)
+    UNIT_FILE_STATE=$(_sysz_show "$UNIT" UnitFileState)
+    CAN_RELOAD=$(_sysz_show "$UNIT" CanReload)
+    PREVIEW="'${BASH_SOURCE[0]}' _fzf_preview '$UNIT'"
   fi
 
   fzf \
@@ -350,16 +364,35 @@ else
     --preview="$PREVIEW" \
     --prompt="Commands: " \
     < <(
+      # status
       echo status "${ARGS[*]}"
-      [[ $MULTI = true || $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}"
-      [[ $MULTI = true || $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}"
-      [[ $MULTI = true || $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}"
-      [[ $MULTI = true || $UNIT_FILE_STATE != enabled ]] && printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}"
-      [[ $MULTI = true || $UNIT_FILE_STATE != enabled ]] && printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${ARGS[*]}"
-      [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}"
-      [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m %s\n' disable "--now ${ARGS[*]}"
-      [[ $MULTI = true || $CAN_RELOAD = yes ]] && printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}"
+      # restart
+      [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}"
+      # start
+      [[ $MULTI = true || $ACTIVE_STATE != active ]] &&
+        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}"
+      # stop
+      [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}"
+      # enable
+      [[ $MULTI = true || $UNIT_FILE_STATE != enabled ]] &&
+        {
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}"
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${ARGS[*]}"
+        }
+      # disable
+      [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] &&
+        {
+          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}"
+          printf '\033[0;31m%s\033[0m %s\n' disable "--now ${ARGS[*]}"
+        }
+      # reload
+      [[ $MULTI = true || $CAN_RELOAD = yes ]] &&
+        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}"
+      # edit
       echo edit "${ARGS[*]}"
+      # journal
       echo journal "${ARGS[*]}"
       echo follow "${ARGS[*]}"
     ) |
@@ -371,6 +404,7 @@ if [[ ${#CMDS[@]} -eq 0 ]]; then
 fi
 
 for PICK in "${PICKS[@]}"; do
+
   case ${PICK%% *} in
   '[user]')
     MANAGER=--user
