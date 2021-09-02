@@ -89,62 +89,50 @@ _sysz_journalctl() {
   fi
 }
 
-_fzf_cat() {
+_sysz_manager() {
   case ${1%% *} in
   '[user]')
-    MANAGER=--user
+    echo --user
     ;;
   '[system]')
-    MANAGER=--system
+    echo --system
     ;;
   *)
     echo "ERROR: Unknown manager: $1" >&2
     exit 1
     ;;
   esac
+}
+
+_fzf_cat() {
+  local MANAGER
+  MANAGER=$(_sysz_manager "$1")
+  local UNIT
   UNIT=${1##* }
 
-  SYSTEMD_COLORS=1 systemctl $MANAGER cat -- "$UNIT"
+  SYSTEMD_COLORS=1 systemctl "$MANAGER" cat -- "$UNIT"
 }
 
 _fzf_preview() {
-  case ${1%% *} in
-  '[user]')
-    MANAGER=--user
-    ;;
-  '[system]')
-    MANAGER=--system
-    ;;
-  *)
-    echo "ERROR: Unknown manager: $1" >&2
-    exit 1
-    ;;
-  esac
+  local MANAGER
+  MANAGER=$(_sysz_manager "$1")
+  local UNIT
   UNIT=${1##* }
 
   if [[ $UNIT = *@.* ]]; then
     _fzf_cat "$@"
   else
-    SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
+    SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
   fi
 }
 
 _sysz_show() {
   local MANAGER
-  case ${1%% *} in
-  '[user]')
-    MANAGER=--user
-    ;;
-  '[system]')
-    MANAGER=--system
-    ;;
-  *)
-    echo "ERROR: Unknown manager: $PICK" >&2
-    exit 1
-    ;;
-  esac
-  local UNIT=${1##* }
-  _sysz_systemctl $MANAGER show "$UNIT" -p "$2" --value
+  MANAGER=$(_sysz_manager "$1")
+  local UNIT
+  UNIT=${1##* }
+
+  _sysz_systemctl "$MANAGER" show "$UNIT" -p "$2" --value
 }
 
 _sysz_sort() {
@@ -405,36 +393,25 @@ fi
 
 for PICK in "${PICKS[@]}"; do
 
-  case ${PICK%% *} in
-  '[user]')
-    MANAGER=--user
-    ;;
-  '[system]')
-    MANAGER=--system
-    ;;
-  *)
-    echo "ERROR: Unknown manager: $PICK" >&2
-    exit 1
-    ;;
-  esac
+  MANAGER=$(_sysz_manager "$PICK")
   UNIT=${PICK##* }
 
   for CMD in "${CMDS[@]}"; do
     case ${CMD%% *} in
     journal)
-      _sysz_journalctl $MANAGER -xe "--unit=$UNIT" "${ARGS[@]}"
+      _sysz_journalctl "$MANAGER" -xe "--unit=$UNIT" "${ARGS[@]}"
       ;;
     follow)
-      _sysz_journalctl $MANAGER -xef "--unit=$UNIT" "${ARGS[@]}"
+      _sysz_journalctl "$MANAGER" -xef "--unit=$UNIT" "${ARGS[@]}"
       ;;
     status)
       # shellcheck disable=2086
-      SYSTEMD_COLORS=1 systemctl $MANAGER $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
+      SYSTEMD_COLORS=1 systemctl "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
     *)
       # shellcheck disable=2086
       _sysz_systemctl $MANAGER $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
-      SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
+      SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
       if [[ ${#PICKS[@]} -eq 1 ]]; then
         exit $CODE
       fi
