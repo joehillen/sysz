@@ -322,7 +322,7 @@ else
     < <(
       echo status "${ARGS[*]}"
       [[ $MULTI = true || $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}"
-      [[ $MULTI = true || $ACTIVE_STATE = inactive ]] && printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}"
+      [[ $MULTI = true || $ACTIVE_STATE != active ]] && printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}"
       [[ $MULTI = true || $ACTIVE_STATE = active ]] && printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}"
       [[ $MULTI = true || $UNIT_FILE_STATE = disabled ]] && printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}"
       [[ $MULTI = true || $UNIT_FILE_STATE = disabled ]] && printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${ARGS[*]}"
