@@ -8,7 +8,7 @@ A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Features
 
-VERSION: 1.0.0
+VERSION: 1.1.0
 
 - See and filter both system and user units simultaneously
 - Supports all units types
@@ -35,6 +35,8 @@ sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. start is only shows if active).
+
+Use CTRL-v to run `systemctl cat <unit>` in the preview window.
 
 OPTS:
   -u, --user               Only show --user units
