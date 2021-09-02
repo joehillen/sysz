@@ -19,6 +19,8 @@ sudo is invoked automatically, if necessary.
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. start is only shows if active).
 
+Use CTRL-v to run \`systemctl cat <unit>\` in the preview window.
+
 OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
@@ -87,7 +89,25 @@ _sysz_journalctl() {
   fi
 }
 
-_sysz_preview() {
+_fzf_cat() {
+  case ${1%% *} in
+  '[user]')
+    MANAGER=--user
+    ;;
+  '[system]')
+    MANAGER=--system
+    ;;
+  *)
+    echo "ERROR: Unknown manager: $1" >&2
+    exit 1
+    ;;
+  esac
+  UNIT=${1##* }
+
+  SYSTEMD_COLORS=1 systemctl $MANAGER cat -- "$UNIT"
+}
+
+_fzf_preview() {
   case ${1%% *} in
   '[user]')
     MANAGER=--user
@@ -227,7 +247,12 @@ while [[ -n $1 ]]; do
   case $1 in
   _fzf_preview)
     shift
-    _sysz_preview "$@"
+    _fzf_preview "$@"
+    exit 0
+    ;;
+  _fzf_cat)
+    shift
+    _fzf_cat "$@"
     exit 0
     ;;
   h | help)
@@ -287,6 +312,7 @@ _sysz_list_units |
     --no-sort \
     --history="$SYSZ_HISTORY" \
     --prompt="Units: " \
+    --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
     --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
     --preview-window=70% |
   readarray -t PICKS
@@ -329,7 +355,6 @@ else
       [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}"
       [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] && printf '\033[0;31m%s\033[0m %s\n' disable "--now ${ARGS[*]}"
       [[ $MULTI = true || $CAN_RELOAD = yes ]] && printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}"
-      echo cat "${ARGS[*]}"
       echo edit "${ARGS[*]}"
       echo journal "${ARGS[*]}"
       echo follow "${ARGS[*]}"
@@ -367,10 +392,6 @@ for PICK in "${PICKS[@]}"; do
     status)
       # shellcheck disable=2086
       SYSTEMD_COLORS=1 systemctl $MANAGER $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
-      ;;
-    cat)
-      # shellcheck disable=2086
-      _sysz_systemctl $MANAGER $CMD "${ARGS[@]}" -- "$UNIT"
       ;;
     *)
       # shellcheck disable=2086
