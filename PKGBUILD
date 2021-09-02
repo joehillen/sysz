@@ -1,15 +1,15 @@
 # Maintainer: Joe Hillenbrand (joehillen) <joehillen@gmail.com>
 
 pkgname=sysz
-pkgver=1.0.0
-pkgrel=1
-pkgdesc="A fzf interface terminal UI for systemctl"
+pkgver=1.1.0
+pkgrel=0
+pkgdesc="A fzf terminal UI for systemctl"
 arch=("any")
 url="https://github.com/joehillen/sysz"
 license=("UNLICENSE")
 depends=("bash" "fzf")
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('79d4d8679e8f7c5f1c0ea0bb9409a411fad77fb88946e9bad23e7b6b80f9ac87')
+sha256sums=('147859ee1f9126f6768aef161a04f547ad1ea39d0c277759d4897b6403695223')
 
 package() {
   install -Dm775 "$srcdir/$pkgname-$pkgver/sysz" "$pkgdir/usr/bin/sysz"
