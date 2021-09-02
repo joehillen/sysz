@@ -122,7 +122,11 @@ _fzf_preview() {
   esac
   UNIT=${1##* }
 
-  SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
+  if [[ $UNIT = *@.* ]]; then
+    _fzf_cat "$@"
+  else
+    SYSTEMD_COLORS=1 systemctl $MANAGER status --no-pager -- "$UNIT"
+  fi
 }
 
 _sysz_show() {
