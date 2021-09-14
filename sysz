@@ -67,25 +67,26 @@ EOF
   exit 1
 }
 
+_sysz_run() {
+  [[ $VERBOSE = true ]] && echo '>' "$@"
+  eval "$@" || return $?
+}
+
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    [[ $VERBOSE = true ]] && echo '>' sudo systemctl "$@"
-    sudo systemctl "$@"
+    _sysz_run sudo systemctl "$@"
   else
-    [[ $VERBOSE = true ]] && echo '>' systemctl "$@"
-    systemctl "$@"
+    _sysz_run systemctl "$@"
   fi
 }
 
 _sysz_journalctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    [[ $VERBOSE = true ]] && echo '>' sudo journalctl "$@"
-    sudo journalctl "$@"
+      __sysz_run sudo journalctl "$@"
   else
-    [[ $VERBOSE = true ]] && echo '>' journalctl "$@"
-    journalctl "$@"
+    _sysz_run journalctl "$@"
   fi
 }
 
