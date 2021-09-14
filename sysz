@@ -82,12 +82,24 @@ _sysz_systemctl() {
 }
 
 _sysz_journalctl() {
-  if [[ $EUID -ne 0 && $1 = --system ]]; then
-    # only run sudo if we aren't root and it's a system unit
+  # remove --system from journalctl
+  if [[ $1 = --system ]]; then
+    shift
+    if [[ $EUID -ne 0 ]]; then
+      # only run sudo if we aren't root and it's a system unit
       __sysz_run sudo journalctl "$@"
-  else
-    _sysz_run journalctl "$@"
+      return
+    fi
   fi
+
+  # remove --user flag from journalctl
+  # --user and --system don't work the same on journalctl
+  # as they do for systemctl
+  if [[ $1 = --user ]]; then
+    shift
+  fi
+
+  _sysz_run journalctl "$@"
 }
 
 _sysz_manager() {
