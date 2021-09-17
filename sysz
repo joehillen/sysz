@@ -208,7 +208,13 @@ _sysz_list_units() {
 
 # main
 
-MANAGERS=(user system)
+# root doesn't have user units
+if [[ $EUID -ne 0 ]]; then
+  MANAGERS=(system)
+else
+  MANAGERS=(user system)
+fi
+
 declare -a STATES
 while [[ -n $1 ]]; do
   case $1 in
