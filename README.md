@@ -8,7 +8,7 @@ A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Features
 
-VERSION: 1.1.0
+VERSION: 1.2.0
 
 - See and filter both system and user units simultaneously
 - Supports all units types
@@ -42,7 +42,8 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
-  -v, --verbose            Print the systemctl command
+  -V, --verbose            Print the systemctl command
+  -v, --version            Print the version
   -h, --help               Print this message
 
   If no options are given, both system and user units are shown.

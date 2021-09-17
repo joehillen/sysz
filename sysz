@@ -3,6 +3,8 @@
 set -f # disable globbing
 shopt -s lastpipe
 
+SYSZ_VERSION=1.2.0
+
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 
 _sysz_help() {
@@ -25,7 +27,8 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
-  -v, --verbose            Print the systemctl command
+  -V, --verbose            Print the systemctl command
+  -v, --version            Print the version
   -h, --help               Print this message
 
   If no options are given, both system and user units are shown.
@@ -231,7 +234,11 @@ while [[ -n $1 ]]; do
     shift
     shift
     ;;
-  -v | --verbose)
+  -v | --version)
+    echo "$PROG" $SYSZ_VERSION
+    exit 0
+    ;;
+  -V | --verbose)
     VERBOSE=true
     shift
     ;;
