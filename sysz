@@ -398,6 +398,8 @@ else
       [[ $MULTI = true || $CAN_RELOAD = yes ]] &&
         printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}"
       # edit
+      echo show "${ARGS[*]}"
+      # edit
       echo edit "${ARGS[*]}"
       # journal
       echo journal "${ARGS[*]}"
