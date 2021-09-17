@@ -1,7 +1,7 @@
 # Maintainer: Joe Hillenbrand (joehillen) <joehillen@gmail.com>
 
 pkgname=sysz
-pkgver=1.2.0
+pkgver=1.2.1
 pkgrel=0
 pkgdesc="fzf terminal UI for systemctl"
 arch=("any")
