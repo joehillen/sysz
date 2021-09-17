@@ -90,7 +90,7 @@ _sysz_journalctl() {
     shift
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root and it's a system unit
-      __sysz_run sudo journalctl "$@"
+      _sysz_run sudo journalctl "$@"
       return
     fi
   fi
