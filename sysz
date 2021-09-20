@@ -225,11 +225,11 @@ while [[ -n $1 ]]; do
     MANAGERS=(user)
     shift
     ;;
-  -s | --sys | --system)
+  --sys | --system)
     MANAGERS=(system)
     shift
     ;;
-  --state)
+  -s | --state)
     STATES+=("--state=$2")
     shift
     shift
