@@ -8,7 +8,7 @@ A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Features
 
-VERSION: 1.2.3
+VERSION: 1.3.0
 
 - See and filter both system and user units simultaneously
 - Supports all units types
@@ -86,6 +86,7 @@ CMD:
   reload                 systemctl reload <unit>
   en, enable             systemctl enable <unit>
   d, dis, disable        systemctl disable <unit>
+  c, cat                 systemctl cat <unit>
 
   If no command is given, one or more can be chosen interactively.
 
@@ -114,3 +115,5 @@ Examples with commands:
 # Acknowledgements
 
 Inspired by [fuzzy-sys](https://github.com/NullSense/fuzzy-sys) by [NullSense](https://github.com/NullSense/)
+
+Thank you for [ShellCheck](https://github.com/koalaman/shellcheck) without which this would be a buggy mess.

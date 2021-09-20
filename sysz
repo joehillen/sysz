@@ -42,6 +42,7 @@ CMD:
   reload                 systemctl reload <unit>
   en, enable             systemctl enable <unit>
   d, dis, disable        systemctl disable <unit>
+  c, cat                 systemctl cat <unit>
 
   If no command is given, one or more can be chosen interactively.
 
@@ -415,6 +416,8 @@ else
       # journal
       echo journal "${ARGS[*]}"
       echo follow "${ARGS[*]}"
+      # cat
+      echo cat "${ARGS[*]}"
     ) |
     readarray -t CMDS
 fi
@@ -440,9 +443,12 @@ for PICK in "${PICKS[@]}"; do
       # shellcheck disable=2086
       SYSTEMD_COLORS=1 systemctl "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
+    cat)
+      _sysz_systemctl "$MANAGER" cat "${ARGS[@]}" -- "$UNIT" || exit $?
+      ;;
     *)
       # shellcheck disable=2086
-      _sysz_systemctl $MANAGER $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
+      _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
       SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
       if [[ ${#PICKS[@]} -eq 1 ]]; then
         exit $CODE

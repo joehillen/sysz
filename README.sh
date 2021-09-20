@@ -64,4 +64,6 @@ ${BLOCK}
 # Acknowledgements
 
 Inspired by [fuzzy-sys](https://github.com/NullSense/fuzzy-sys) by [NullSense](https://github.com/NullSense/)
+
+Thank you for [ShellCheck](https://github.com/koalaman/shellcheck) without which this would be a buggy mess.
 EOF
