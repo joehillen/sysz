@@ -5,7 +5,7 @@ all: clean README.md VERSION PKGBUILD
 	sed -i -e "s/^pkgver=.*/pkgver=`cat VERSION`/" PKGBUILD
 
 clean:
-	rm -f README.md
+	/bin/rm -f README.md
 
 README.md: README.sh sysz VERSION
 	./README.sh
