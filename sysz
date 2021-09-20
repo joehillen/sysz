@@ -234,6 +234,10 @@ while [[ -n $1 ]]; do
     shift
     shift
     ;;
+  --state=*)
+    STATES+=("$1")
+    shift
+    ;;
   -v | --version)
     echo "$PROG" $SYSZ_VERSION
     exit 0
