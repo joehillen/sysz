@@ -26,15 +26,9 @@ VERSION: $(cat VERSION)
   (e.g. show "start" and "restart" only if the unit is inactive)
 - Can filter units based on their state using the \`--state\` option
 
-# Usage
-
-${BLOCK}text
-$(./sysz -h 2>&1 | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
-${BLOCK}
-
 # Requirements
 
-- [fzf](https://github.com/junegunn/fzf)
+- [fzf](https://github.com/junegunn/fzf) >= [0.22.0](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0220)
 - bash > 4.3 (released 2009)
 - awk
 
@@ -59,6 +53,12 @@ ${BLOCK}sh
 git clone https://github.com/joehillen/sysz.git
 cd sysz
 sudo make install # /usr/local/bin/sysz
+${BLOCK}
+
+# Usage
+
+${BLOCK}text
+$(./sysz -h 2>&1 | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
 ${BLOCK}
 
 # Acknowledgements

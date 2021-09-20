@@ -22,6 +22,35 @@ VERSION: 1.2.2
   (e.g. show "start" and "restart" only if the unit is inactive)
 - Can filter units based on their state using the `--state` option
 
+# Requirements
+
+- [fzf](https://github.com/junegunn/fzf) >= [0.22.0](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0220)
+- bash > 4.3 (released 2009)
+- awk
+
+# Installation
+
+## Arch Linux
+
+```
+paru -S sysz
+```
+
+## Direct Download
+
+```sh
+wget -O ~/.bin/sysz https://raw.githubusercontent.com/joehillen/sysz/master/sysz
+chmod +x ~/.bin/sysz
+```
+
+## From Source
+
+```sh
+git clone https://github.com/joehillen/sysz.git
+cd sysz
+sudo make install # /usr/local/bin/sysz
+```
+
 # Usage
 
 ```text
@@ -80,35 +109,6 @@ Examples with commands:
   sysz s -- -n100             Show status with 100 log lines
   sysz -sys -s active stop    Stop an active system unit
   sysz -u --state failed r    Restart failed user units
-```
-
-# Requirements
-
-- [fzf](https://github.com/junegunn/fzf)
-- bash > 4.3 (released 2009)
-- awk
-
-# Installation
-
-## Arch Linux
-
-```
-paru -S sysz
-```
-
-## Direct Download
-
-```sh
-wget -O ~/.bin/sysz https://raw.githubusercontent.com/joehillen/sysz/master/sysz
-chmod +x ~/.bin/sysz
-```
-
-## From Source
-
-```sh
-git clone https://github.com/joehillen/sysz.git
-cd sysz
-sudo make install # /usr/local/bin/sysz
 ```
 
 # Acknowledgements
