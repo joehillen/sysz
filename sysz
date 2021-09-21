@@ -369,6 +369,7 @@ else
     fi
 
     ACTIVE_STATE=$(_sysz_show "$UNIT" ActiveState)
+    LOAD_STATE=$(_sysz_show "$UNIT" LoadState)
     UNIT_FILE_STATE=$(_sysz_show "$UNIT" UnitFileState)
     CAN_RELOAD=$(_sysz_show "$UNIT" CanReload)
     PREVIEW="'${BASH_SOURCE[0]}' _fzf_preview '$UNIT'"
@@ -387,37 +388,46 @@ else
       echo status "${ARGS[*]}"
       # restart
       [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}"
+        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}" # red
       # start
       [[ $MULTI = true || $ACTIVE_STATE != active ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}"
+        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}" # green
       # stop
       [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}"
+        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}" # red
       # enable
       [[ $MULTI = true || $UNIT_FILE_STATE != enabled ]] &&
         {
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}"
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}" # green
           printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${ARGS[*]}"
         }
       # disable
       [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] &&
         {
-          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}"
+          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}" # red
           printf '\033[0;31m%s\033[0m %s\n' disable "--now ${ARGS[*]}"
         }
-      # reload
-      [[ $MULTI = true || $CAN_RELOAD = yes ]] &&
-        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}"
-      # edit
-      echo show "${ARGS[*]}"
-      # edit
-      echo edit "${ARGS[*]}"
+
       # journal
       echo journal "${ARGS[*]}"
       echo follow "${ARGS[*]}"
+
+      # reload
+      [[ $MULTI = true || $CAN_RELOAD = yes ]] &&
+        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}" # green
+
+      # mask
+      [[ $MULTI = true || ($UNIT_FILE_STATE != masked && $LOAD_STATE != masked) ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' mask "${ARGS[*]}" # red
+      [[ $MULTI = true || $UNIT_FILE_STATE = masked || $LOAD_STATE = masked ]] &&
+        printf '\033[0;32m%s\033[0m %s\n' unmask "${ARGS[*]}" # green
+
       # cat
       echo cat "${ARGS[*]}"
+      # edit
+      echo edit "${ARGS[*]}"
+      # show
+      echo show "${ARGS[*]}"
     ) |
     readarray -t CMDS
 fi
@@ -443,8 +453,8 @@ for PICK in "${PICKS[@]}"; do
       # shellcheck disable=2086
       SYSTEMD_COLORS=1 systemctl "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
-    cat)
-      _sysz_systemctl "$MANAGER" cat "${ARGS[@]}" -- "$UNIT" || exit $?
+    cat | show)
+      _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || exit $?
       ;;
     *)
       # shellcheck disable=2086
