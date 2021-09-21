@@ -62,6 +62,11 @@ History:
   $PROG is stored in $SYSZ_HISTORY
   This can be changed with the environment variable: SYSZ_HISTORY
 
+Some units are colored based on state:
+  green       active
+  red         failed
+  yellow      not-found
+
 Examples:
   $PROG -u                      User units
   $PROG -sys -s active          Active system units
