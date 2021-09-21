@@ -58,14 +58,10 @@ A utility for using systemctl interactively via fzf.
 
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
-Select multiple units and commands using TAB.
-
 sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
-based on the state of the unit (e.g. start is only shows if active).
-
-Use CTRL-v to run `systemctl cat <unit>` in the preview window.
+based on the state of the unit (e.g. "start" only shows if unit is "active").
 
 OPTS:
   -u, --user               Only show --user units
@@ -92,11 +88,23 @@ CMD:
 
 ARGS are passed to the systemctl command for each selected unit.
 
+Keybindings:
+  TAB           Toggle selection.
+  ctrl-s        Select states to filter with.
+  ctrl-v        'cat' the unit in the preview window.
+  ctrl-r        Run daemon-reload.
+  ctrl-p        History previous.
+  ctrl-n        History next.
+  ?             Show keybindings.
+
 History:
   sysz is stored in $XDG_CACHE_HOME/sysz/history
   This can be changed with the environment variable: SYSZ_HISTORY
 
-  Use CTRL-p and CTRL-n to navigate through history.
+Some units are colored based on state:
+  green       active
+  red         failed
+  yellow      not-found
 
 Examples:
   sysz -u                      User units
