@@ -28,7 +28,7 @@ VERSION: $(cat VERSION)
 
 # Requirements
 
-- [fzf](https://github.com/junegunn/fzf) >= [0.22.0](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0220)
+- [fzf](https://github.com/junegunn/fzf) >= [0.27.1](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0244)
 - bash > 4.3 (released 2009)
 - awk
 
