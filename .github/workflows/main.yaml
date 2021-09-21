@@ -1,6 +1,6 @@
 name: Main
 
-on: push
+on: release
 
 jobs:
   build:
