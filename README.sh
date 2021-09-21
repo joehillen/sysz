@@ -40,10 +40,16 @@ ${BLOCK}
 paru -S sysz
 ${BLOCK}
 
+## Using [\`bin\`](https://github.com/marcosnils/bin)
+
+${BLOCK}
+bin install https://github.com/joehillen/sysz
+${BLOCK}
+
 ## Direct Download
 
 ${BLOCK}sh
-wget -O ~/.bin/sysz https://raw.githubusercontent.com/joehillen/sysz/master/sysz
+wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
 chmod +x ~/.bin/sysz
 ${BLOCK}
 
