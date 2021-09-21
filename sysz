@@ -248,6 +248,14 @@ _sysz_list_units() {
 
 # main
 
+# check fzf version
+MIN_FZF=0.27.1
+if [[ "$(printf '%s\n' "$MIN_FZF" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF" ]]; then
+  echo "ERROR: fzf >= $MIN_FZF required" >&2
+  echo "https://github.com/junegunn/fzf#upgrading-fzf" >&2
+  exit 1
+fi
+
 # root doesn't have user units
 if [[ $EUID -eq 0 ]]; then
   MANAGERS=(system)
