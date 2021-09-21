@@ -16,6 +16,7 @@ Keybindings:
   ctrl-r        Run daemon-reload.
   ctrl-p        History previous.
   ctrl-n        History next.
+  ?             Show keybindings.
 EOF
 }
 
@@ -380,6 +381,8 @@ while :; do
       --no-sort \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
+      --header '? for keybindings' \
+      --bind "?:preview(echo '$(_sysz_keys)')" \
       --bind "ctrl-r:clear-selection+clear-query+change-prompt(Reload: )+close+reload('${BASH_SOURCE[0]}' _fzf_daemon_reload)+first" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --bind "ctrl-s:clear-selection+clear-query+change-prompt(States: )+close+reload('${BASH_SOURCE[0]}' _fzf_states)+first" \
