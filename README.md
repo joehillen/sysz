@@ -8,7 +8,7 @@ A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 # Features
 
-VERSION: 1.3.0
+VERSION: 1.3.1
 
 - See and filter both system and user units simultaneously
 - Supports all units types
