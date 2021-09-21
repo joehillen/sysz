@@ -10,8 +10,10 @@ SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 _sysz_keys() {
   cat <<EOF
 Keybindings:
+  TAB           Toggle selection.
   ctrl-s        Select states to filter with.
-  ctrl-v        Show \`systemctl cat <unit>\` in the preview window.
+  ctrl-v        'cat' the unit in the preview window.
+  ctrl-r        Run daemon-reload.
   ctrl-p        History previous.
   ctrl-n        History next.
 EOF
@@ -23,8 +25,6 @@ _sysz_help() {
 A utility for using systemctl interactively via fzf.
 
 Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
-
-Select multiple units and commands using TAB.
 
 sudo is invoked automatically, if necessary.
 
@@ -86,7 +86,7 @@ _sysz_states() {
 }
 
 _sysz_run() {
-  [[ $VERBOSE = true ]] && echo '>' "$@"
+  [[ $VERBOSE = true ]] && echo '>' "$@" >&2
   eval "$@" || return $?
 }
 
@@ -155,6 +155,13 @@ _fzf_preview() {
   else
     SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
   fi
+}
+
+_fzf_daemon_reload() {
+  if [[ $EUID -ne 0 ]]; then
+    echo '[user] daemon-reload'
+  fi
+  echo '[system] daemon-reload'
 }
 
 _sysz_show() {
@@ -302,6 +309,10 @@ while [[ -n $1 ]]; do
     _fzf_cat "$@"
     exit 0
     ;;
+  _fzf_daemon_reload)
+    _fzf_daemon_reload
+    exit 0
+    ;;
   _fzf_states)
     _sysz_states
     exit 0
@@ -364,6 +375,7 @@ while :; do
       --no-sort \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
+      --bind "ctrl-r:clear-selection+clear-query+change-prompt(Reload: )+close+reload('${BASH_SOURCE[0]}' _fzf_daemon_reload)+first" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --bind "ctrl-s:clear-selection+clear-query+change-prompt(States: )+close+reload('${BASH_SOURCE[0]}' _fzf_states)+first" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
@@ -374,6 +386,24 @@ while :; do
     exit 1
   fi
 
+  [[ $VERBOSE = true ]] && printf 'PICKED: %s\n' "${PICKS[@]}" >&2
+
+  # handle ctrl-r
+  for PICK in "${PICKS[@]}"; do
+    case $PICK in
+    '[user] daemon-reload')
+      _sysz_systemctl --user daemon-reload >&2
+      echo yes
+      ;;
+    '[system] daemon-reload')
+      _sysz_systemctl --system daemon-reload >&2
+      echo yes
+      ;;
+    esac
+  done | read -r RELOADED
+  [[ $RELOADED = yes ]] && continue
+
+  # handle ctrl-s
   if _sysz_states | grep -q "^${PICKS[0]}$"; then
     STATES=()
     for STATE in "${PICKS[@]}"; do
