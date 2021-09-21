@@ -36,10 +36,16 @@ VERSION: 1.3.0
 paru -S sysz
 ```
 
+## Using [`bin`](https://github.com/marcosnils/bin)
+
+```
+bin install https://github.com/joehillen/sysz
+```
+
 ## Direct Download
 
 ```sh
-wget -O ~/.bin/sysz https://raw.githubusercontent.com/joehillen/sysz/master/sysz
+wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
 chmod +x ~/.bin/sysz
 ```
 
