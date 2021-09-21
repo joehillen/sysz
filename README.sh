@@ -18,13 +18,13 @@ VERSION: $(cat VERSION)
 - Supports all units types
 - Units ordered by service, timer, socket, and the rest
 - Runs \`sudo\` automatically and only if necessary
-- History (\`Ctrl-p\` and \`Ctrl-n\`)
-- Support short versions of systemctl commands to reduce typing
+- Filter units by state using \`ctrl-s\` or the \`--state\` option
+- Run \`daemon-reload\` with \`ctrl-r\`
+- Has short versions of systemctl commands to reduce typing
 - Runs status after other commands (start, stop, restart, etc)
-- Select multiple units and commands using \`TAB\` key
+- Select multiple units, states, and commands using \`TAB\`
 - Only prompts commands based on current state
-  (e.g. show "start" and "restart" only if the unit is inactive)
-- Can filter units based on their state using the \`--state\` option
+  (e.g. show "start" only if the unit is inactive)
 
 # Requirements
 
