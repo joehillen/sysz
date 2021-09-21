@@ -7,6 +7,16 @@ SYSZ_VERSION=1.2.3
 
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 
+_sysz_keys() {
+  cat <<EOF
+Keybindings:
+  ctrl-s        Select states to filter with.
+  ctrl-v        Show \`systemctl cat <unit>\` in the preview window.
+  ctrl-p        History previous.
+  ctrl-n        History next.
+EOF
+}
+
 _sysz_help() {
   PROG=$(basename "$0")
   cat >&2 <<EOF
@@ -19,9 +29,7 @@ Select multiple units and commands using TAB.
 sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
-based on the state of the unit (e.g. start is only shows if active).
-
-Use CTRL-v to run \`systemctl cat <unit>\` in the preview window.
+based on the state of the unit (e.g. "start" only shows if unit is "active").
 
 OPTS:
   -u, --user               Only show --user units
@@ -48,11 +56,11 @@ CMD:
 
 ARGS are passed to the systemctl command for each selected unit.
 
+$(_sysz_keys)
+
 History:
   $PROG is stored in $SYSZ_HISTORY
   This can be changed with the environment variable: SYSZ_HISTORY
-
-  Use CTRL-p and CTRL-n to navigate through history.
 
 Examples:
   $PROG -u                      User units
@@ -69,6 +77,12 @@ Examples with commands:
 EOF
 
   exit 1
+}
+
+_sysz_states() {
+  # hide 'ing' because they are transient states
+  # which people probably aren't looking for
+  systemctl --state=help | grep -v ':' | grep -v 'ing' | sort -u | grep -v '^$'
 }
 
 _sysz_run() {
@@ -268,7 +282,7 @@ done
 
 for STATE in "${STATES[@]}"; do
   STATE="${STATE##*=}"
-  if [[ -n $STATE ]] && ! systemctl --state=help | grep -q "^$STATE"; then
+  if [[ -n $STATE ]] && ! systemctl --state=help | grep -q "^${STATE}$"; then
     echo "ERROR: Invalid state: $STATE" >&2
     exit 1
   fi
@@ -286,6 +300,10 @@ while [[ -n $1 ]]; do
   _fzf_cat)
     shift
     _fzf_cat "$@"
+    exit 0
+    ;;
+  _fzf_states)
+    _sysz_states
     exit 0
     ;;
   h | help)
@@ -336,23 +354,35 @@ done
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
 
-_sysz_list_units |
-  fzf \
-    --exact \
-    --multi \
-    --ansi \
-    --reverse \
-    --no-sort \
-    --history="$SYSZ_HISTORY" \
-    --prompt="Units: " \
-    --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
-    --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-    --preview-window=70% |
-  readarray -t PICKS
+while :; do
+  _sysz_list_units |
+    fzf \
+      --exact \
+      --multi \
+      --ansi \
+      --reverse \
+      --no-sort \
+      --history="$SYSZ_HISTORY" \
+      --prompt="Units: " \
+      --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
+      --bind "ctrl-s:clear-selection+clear-query+change-prompt(States: )+close+reload('${BASH_SOURCE[0]}' _fzf_states)+first" \
+      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --preview-window=70% |
+    readarray -t PICKS
 
-if [[ ${#PICKS[@]} -eq 0 ]]; then
-  exit 1
-fi
+  if [[ ${#PICKS[@]} -eq 0 ]]; then
+    exit 1
+  fi
+
+  if _sysz_states | grep -q "^${PICKS[0]}$"; then
+    STATES=()
+    for STATE in "${PICKS[@]}"; do
+      STATES+=("--state=$STATE")
+    done
+  else
+    break
+  fi
+done
 
 printf -v PICKS_STR '%s\n' "${PICKS[@]}"
 
