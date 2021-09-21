@@ -6,7 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0] - 2021-09-20
 ### Added
-- `cat` command back
+- `cat` command
+- `mask` command
+- `unmask` command
+- color results based on state
+- `ctrl-s` to filter states
+- `ctrl-r` to run daemon-reload
+- `?` to show keybindings
+
+### Fixed
+- Do not run `status` after `show`
 
 ## [1.2.3] - 2021-09-20
 ### Fixed
