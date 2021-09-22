@@ -214,7 +214,7 @@ _sysz_list() {
   (
     systemctl list-units "${args[@]}"
     systemctl list-unit-files "${args[@]}"
-  ) |
+  ) | sort -u -t ' ' -k1,1 |
     while read -r line; do
       unit=${line%% *}
       if [[ $line = *" active "* ]]; then
@@ -226,7 +226,7 @@ _sysz_list() {
       else
         echo "$unit"
       fi
-    done | sort -biu
+    done
 }
 
 _sysz_list_units() {
@@ -421,6 +421,7 @@ while :; do
     fzf \
       --multi \
       --ansi \
+      --no-sort \
       --expect=ctrl-r,ctrl-s \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
@@ -491,8 +492,6 @@ else
     --multi \
     --ansi \
     --no-info \
-    --reverse \
-    --no-sort \
     --prompt="Commands: " \
     --preview="$PREVIEW_CMD" \
     --preview-window=80% < <(
