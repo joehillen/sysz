@@ -10,17 +10,17 @@ A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
 VERSION: 1.3.1
 
-- See and filter both system and user units simultaneously
-- Supports all units types
-- Units ordered by service, timer, socket, and the rest
-- Runs `sudo` automatically and only if necessary
-- Filter units by state using `ctrl-s` or the `--state` option
-- Run `daemon-reload` with `ctrl-r`
-- Has short versions of systemctl commands to reduce typing
-- Runs status after other commands (start, stop, restart, etc)
-- Select multiple units, states, and commands using `TAB`
+- See and filter both system and user units simultaneously.
+- Supports all unit types.
+- Units ordered by service, timer, socket, and the rest.
+- Runs `sudo` automatically and only if necessary.
+- Filter units by state using `ctrl-s` or the `--state` option.
+- Run `daemon-reload` with `ctrl-r`.
+- Has short versions of systemctl commands to reduce typing.
+- Runs status after other commands (start, stop, restart, etc).
+- Select multiple units, states, and commands using `TAB`.
 - Only prompts commands based on current state
-  (e.g. show "start" only if the unit is inactive)
+  (e.g. show "start" only if the unit is inactive).
 
 # Requirements
 
