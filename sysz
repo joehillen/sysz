@@ -71,7 +71,7 @@ Some units are colored based on state:
 
 Examples:
   $PROG -u                      User units
-  $PROG -sys -s active          Active system units
+  $PROG --sys -s active          Active system units
   $PROG --user --state failed   Failed user units
 
 Examples with commands:
@@ -79,7 +79,7 @@ Examples with commands:
   $PROG --sys s                Get the status of system units
   $PROG --user edit            Edit user units
   $PROG s -- -n100             Show status with 100 log lines
-  $PROG -sys -s active stop    Stop an active system unit
+  $PROG --sys -s active stop    Stop an active system unit
   $PROG -u --state failed r    Restart failed user units
 EOF
 
