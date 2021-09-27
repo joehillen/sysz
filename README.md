@@ -114,7 +114,7 @@ Some units are colored based on state:
 
 Examples:
   sysz -u                      User units
-  sysz -sys -s active          Active system units
+  sysz --sys -s active          Active system units
   sysz --user --state failed   Failed user units
 
 Examples with commands:
@@ -122,7 +122,7 @@ Examples with commands:
   sysz --sys s                Get the status of system units
   sysz --user edit            Edit user units
   sysz s -- -n100             Show status with 100 log lines
-  sysz -sys -s active stop    Stop an active system unit
+  sysz --sys -s active stop    Stop an active system unit
   sysz -u --state failed r    Restart failed user units
 ```
 
