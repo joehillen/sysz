@@ -15,6 +15,7 @@ release: all
 	makepkg
 	git commit -am 'Update PKGBUILD'
 	git push origin master
+	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
 
 
 clean:
