@@ -430,7 +430,7 @@ while :; do
       --header '? for keybindings' \
       --bind "?:preview(echo '$(_sysz_keys)')" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
-      --preview="${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=70% |
     readarray -t PICKS
 
