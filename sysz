@@ -4,6 +4,8 @@ set -o pipefail
 shopt -s lastpipe
 shopt -s extglob
 
+export SHELL=bash
+
 PROG=$(basename "$0")
 SYSZ_VERSION=1.4.1
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
@@ -426,9 +428,9 @@ while :; do
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
       --header '? for keybindings' \
-      --bind "?:preview(/usr/bin/env bash echo '$(_sysz_keys)')" \
-      --bind "ctrl-v:preview(/usr/bin/env bash '${BASH_SOURCE[0]}' _fzf_cat {})" \
-      --preview="/usr/bin/env bash '${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --bind "?:preview(echo '$(_sysz_keys)')" \
+      --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
+      --preview="${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=70% |
     readarray -t PICKS
 
@@ -577,5 +579,4 @@ for PICK in "${UNITS[@]}"; do
       ;;
     esac
   done
-
 done
