@@ -16,7 +16,7 @@ release: all
 	git commit -am 'Update PKGBUILD'
 	git push origin master
 	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
-	cd ~/src/aur/sysz/PKGBUILD
+	cd ~/src/aur/sysz/
 	makepkg -ci
 	git commit -am "Release $(VERSION)"
 	git push origin master
