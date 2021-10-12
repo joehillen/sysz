@@ -9,7 +9,7 @@ url="https://github.com/joehillen/sysz"
 license=("UNLICENSE")
 depends=("bash" "fzf")
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('948ef4bbff219fae9cea2cb630a6e5749d5163155e6a6825bf7e7607b8b30107')
+sha256sums=('d9520e471dbb26da0046da1959e705fb70caee8e3dba9fd6c1963f8a6e9d6c70')
 
 package() {
   install -Dm775 "$srcdir/$pkgname-$pkgver/sysz" "$pkgdir/usr/bin/sysz"

@@ -1,16 +1,26 @@
 VERSION := $(shell cat VERSION)
 ARCHIVE := sysz-$(VERSION).tar.gz
-.PHONY: all install clean release
+.PHONY: install clean release archive
 
-sysz: VERSION CHANGELOG.md
+sysz: VERSION
 	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz
 
-$(ARCHIVE): VERSION CHANGELOG.md
+$(ARCHIVE): sysz CHANGELOG.md README.md
 	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-$(VERSION)/ HEAD
+
+clean:
+	/bin/rm -f README.md
+
+README.md: README.sh sysz VERSION
+	./README.sh
+
+archive: $(ARCHIVE)
 
 PKGBUILD: VERSION $(ARCHIVE)
 	sed -i -e "s/^sha256sums=.*/sha256sums=('`sha256sum $(ARCHIVE) | cut -d' ' -f1`')/" PKGBUILD
 	makepkg -f
+
+aur-release: PKGBUILD
 	git commit -am 'Update PKGBUILD'
 	git push origin master
 	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
@@ -19,18 +29,13 @@ PKGBUILD: VERSION $(ARCHIVE)
 	git commit -am "Release $(VERSION)"
 	git push origin master
 
-all: clean sysz $(ARCHIVE)
-
-release: all
+github-release: VERSION sysz CHANGELOG.md README.md
 	git commit -am 'Release $(VERSION)'
 	git tag $(VERSION)
 	git push origin $(VERSION)
 
-clean:
-	/bin/rm -f README.md
+release: clean sysz README.md github-release
 
-README.md: README.sh sysz VERSION
-	./README.sh
 
 install:
 	install -m755 sysz /usr/local/bin/
