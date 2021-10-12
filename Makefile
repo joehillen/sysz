@@ -1,6 +1,7 @@
 VERSION := $(shell cat VERSION)
 ARCHIVE := sysz-$(VERSION).tar.gz
 .PHONY: install clean release archive
+.ONESHELL: aur-release
 
 sysz: VERSION
 	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz
