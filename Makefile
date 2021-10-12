@@ -17,6 +17,7 @@ README.md: README.sh sysz VERSION
 archive: $(ARCHIVE)
 
 PKGBUILD: VERSION $(ARCHIVE)
+	sed -i -e "s/^pkgver=.*/pkgver=$(VERSION)/" PKGBUILD
 	sed -i -e "s/^sha256sums=.*/sha256sums=('`sha256sum $(ARCHIVE) | cut -d' ' -f1`')/" PKGBUILD
 	makepkg -f
 
