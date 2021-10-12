@@ -7,7 +7,7 @@ sysz: VERSION
 	sed -i -e "s/^SYSZ_VERSION=.*/SYSZ_VERSION=$(VERSION)/" sysz
 
 $(ARCHIVE): sysz CHANGELOG.md README.md
-	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-$(VERSION)/ HEAD
+	git archive --format=tar.gz -o $(ARCHIVE) --prefix sysz-$(VERSION)/ $(VERSION)
 
 clean:
 	/bin/rm -f README.md
@@ -27,10 +27,9 @@ aur-release: PKGBUILD
 	git push origin master
 	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
 	cd ~/src/aur/sysz/
-	pwd
-	# makepkg -ci
-	# git commit -am "Release $(VERSION)"
-	# git push origin master
+	makepkg -ci
+	git commit -am "Release $(VERSION)"
+	git push origin master
 
 github-release: VERSION sysz CHANGELOG.md README.md
 	git commit -am 'Release $(VERSION)'
