@@ -27,9 +27,10 @@ aur-release: PKGBUILD
 	git push origin master
 	cp PKGBUILD ~/src/aur/sysz/PKGBUILD
 	cd ~/src/aur/sysz/
-	makepkg -ci
-	git commit -am "Release $(VERSION)"
-	git push origin master
+	pwd
+	# makepkg -ci
+	# git commit -am "Release $(VERSION)"
+	# git push origin master
 
 github-release: VERSION sysz CHANGELOG.md README.md
 	git commit -am 'Release $(VERSION)'
