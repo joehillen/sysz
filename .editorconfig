@@ -1,0 +1,8 @@
+[*]
+indent_style = space
+indent_size = 2
+
+# shfmt options
+# https://github.com/mvdan/sh/blob/master/cmd/shfmt/shfmt.1.scd
+shell_variant      = bash
+switch_case_indent = false
