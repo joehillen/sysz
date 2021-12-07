@@ -1,0 +1,13 @@
+name: lint
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Run sh-checker
+        uses: luizm/action-sh-checker@master
+        with:
+          sh_checker_exclude: "README.sh"
