@@ -103,24 +103,18 @@ _sysz_systemctl() {
 }
 
 _sysz_journalctl() {
-  # remove --system from journalctl
-  if [[ $1 = --system ]]; then
-    shift
+  if [[ $1 = --user ]]; then
+    # use --user-unit flag if it's a user unit
+    _sysz_run journalctl --user-unit="$2" "${@:3}"
+  else
     if [[ $EUID -ne 0 ]]; then
-      # only run sudo if we aren't root and it's a system unit
-      _sysz_run sudo journalctl "$@"
-      return
+      # only run sudo if we aren't root
+      _sysz_run sudo journalctl --unit="$2" "${@:3}"
+    else
+      _sysz_run journalctl --unit="$2" "${@:3}"
     fi
   fi
 
-  # remove --user flag from journalctl
-  # --user and --system don't work the same on journalctl
-  # as they do for systemctl
-  if [[ $1 = --user ]]; then
-    shift
-  fi
-
-  _sysz_run journalctl "$@"
 }
 
 _sysz_manager() {
@@ -557,10 +551,10 @@ for PICK in "${UNITS[@]}"; do
   for CMD in "${CMDS[@]}"; do
     case ${CMD%% *} in
     journal)
-      _sysz_journalctl "$MANAGER" -xe "--unit=$UNIT" "${ARGS[@]}"
+      _sysz_journalctl "$MANAGER" "$UNIT" -xe "${ARGS[@]}"
       ;;
     follow)
-      _sysz_journalctl "$MANAGER" -xef "--unit=$UNIT" "${ARGS[@]}"
+      _sysz_journalctl "$MANAGER" "$UNIT" -xef "${ARGS[@]}"
       ;;
     status)
       # shellcheck disable=2086
