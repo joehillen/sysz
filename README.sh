@@ -6,6 +6,8 @@ cat <<EOF >README.md
 
 A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
 
+<a href="https://console.dev" title="Visit Console - the best tools for developers"><img src="https://console.dev/img/badges/1.0/svg/console-badge-logo-dark.svg" alt="Console - Developer Tool of the Week" /></a>
+
 # Demo
 
 [![asciicast](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa.svg)](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa)
