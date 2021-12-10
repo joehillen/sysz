@@ -74,6 +74,7 @@ based on the state of the unit (e.g. "start" only shows if unit is "active").
 OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
+  -a, --all                Also show non-instantiated unit templates
   -s STATE, --state STATE  Only show units in STATE (repeatable)
   -V, --verbose            Print the systemctl command
   -v, --version            Print the version

@@ -38,6 +38,7 @@ based on the state of the unit (e.g. "start" only shows if unit is "active").
 OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
+  -a, --all                Also show non-instantiated unit templates
   -s STATE, --state STATE  Only show units in STATE (repeatable)
   -V, --verbose            Print the systemctl command
   -v, --version            Print the version
@@ -207,10 +208,23 @@ _sysz_list() {
     "${STATES[@]}"
     "$@"
   )
-  (
-    systemctl list-units "${args[@]}"
-    systemctl list-unit-files "${args[@]}"
-  ) | sort -u -t ' ' -k1,1 |
+
+  # If LIST_ALL_UNITS is true, include all instantiated, installed units
+  # From systemctl man page:
+  # "[list-units] does not show unit templates, but only instances of unit templates."
+  # "Use list-unit-files (see below) for listing installed unit template files."
+  #
+  # list-unit-files exluded by default due to noticible increase in wait time
+  if [[ $LIST_ALL_UNITS = true ]]; then
+    units=$(
+      systemctl list-units "${args[@]}"
+      systemctl list-unit-files "${args[@]}"
+    )
+  else
+    units=$(systemctl list-units "${args[@]}")
+  fi
+
+  echo "$units" | sort -u -t ' ' -k1,1 |
     while read -r line; do
       unit=${line%% *}
       if [[ $line = *" active "* ]]; then
@@ -257,6 +271,10 @@ while [[ -n $1 ]]; do
     ;;
   --sys | --system)
     MANAGERS=(system)
+    shift
+    ;;
+  -a | --all)
+    LIST_ALL_UNITS=true
     shift
     ;;
   -s | --state)
