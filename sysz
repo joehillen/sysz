@@ -30,7 +30,8 @@ A utility for using systemctl interactively via fzf.
 
 Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
 
-sudo is invoked automatically, if necessary.
+sudo is invoked automatically when controlling a system unit.
+If sudo is not necessary to control systemd units on your machine, it can be omitted via the "--no-sudo" flag.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
@@ -39,6 +40,7 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
+  --no-sudo                Do not invoke sudo
   -V, --verbose            Print the systemctl command
   -v, --version            Print the version
   -h, --help               Print this message
@@ -93,8 +95,13 @@ _sysz_run() {
   eval "$@" || return $?
 }
 
+_sysz_use_sudo() {
+  # returns true if '--no-sudo' flag is unset and if the user is not root
+  [[ $NO_SUDO != true ]] && [ $EUID -ne 0 ]
+}
+
 _sysz_systemctl() {
-  if [[ $EUID -ne 0 && $1 = --system ]]; then
+  if [[ $1 = --system ]] && _sysz_use_sudo; then
     # only run sudo if we aren't root and it's a system unit
     _sysz_run sudo systemctl "$@"
   else
@@ -107,7 +114,7 @@ _sysz_journalctl() {
     # use --user-unit flag if it's a user unit
     _sysz_run journalctl --user-unit="$2" "${@:3}"
   else
-    if [[ $EUID -ne 0 ]]; then
+    if _sysz_use_sudo; then
       # only run sudo if we aren't root
       _sysz_run sudo journalctl --unit="$2" "${@:3}"
     else
@@ -266,6 +273,10 @@ while [[ -n $1 ]]; do
     ;;
   --state=*)
     STATES+=("$1")
+    shift
+    ;;
+  --no-sudo)
+    NO_SUDO=true
     shift
     ;;
   -v | --version)

@@ -66,7 +66,8 @@ A utility for using systemctl interactively via fzf.
 
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
-sudo is invoked automatically, if necessary.
+sudo is invoked automatically when controlling a system unit.
+If sudo is not necessary to control systemd units on your machine, it can be omitted via the '--no-sudo' flag.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
@@ -75,6 +76,7 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
+  --no-sudo                Do not invoke sudo
   -V, --verbose            Print the systemctl command
   -v, --version            Print the version
   -h, --help               Print this message
