@@ -417,7 +417,6 @@ while :; do
     fzf \
       --multi \
       --ansi \
-      --no-sort \
       --expect=ctrl-r,ctrl-s \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
