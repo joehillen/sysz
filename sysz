@@ -200,7 +200,7 @@ _sysz_list() {
   declare -a args
   args=(
     --all
-    --no-legend
+    --legend=false
     --full
     --plain
     --no-pager
