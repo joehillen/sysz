@@ -47,7 +47,7 @@ bin install https://github.com/joehillen/sysz
 ## Direct Download
 
 ```sh
-wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
+mkdir -p ~/.bin/ && wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
 chmod +x ~/.bin/sysz
 ```
 
