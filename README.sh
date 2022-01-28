@@ -40,6 +40,18 @@ ${BLOCK}
 paru -S sysz
 ${BLOCK}
 
+## NixOS
+
+${BLOCK}
+nix-env -iA nixos.sysz
+${BLOCK}
+
+## Using Nix
+
+${BLOCK}
+nix-env -iA nixpkgs.sysz
+${BLOCK}
+
 ## Using [\`bin\`](https://github.com/marcosnils/bin)
 
 ${BLOCK}

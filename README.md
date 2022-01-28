@@ -38,6 +38,18 @@ VERSION: 1.4.3
 paru -S sysz
 ```
 
+## NixOS
+
+```
+nix-env -iA nixos.sysz
+```
+
+## Using Nix
+
+```
+nix-env -iA nixpkgs.sysz
+```
+
 ## Using [`bin`](https://github.com/marcosnils/bin)
 
 ```
