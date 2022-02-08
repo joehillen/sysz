@@ -1,10 +1,12 @@
 #!/bin/bash
-BLOCK='```'
+CODE='```'
 
 cat <<EOF >README.md
 # [sysz](https://github.com/joehillen/sysz)
 
 A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
+
+<a href="https://console.dev" title="Visit Console - the best tools for developers"><img src="https://console.dev/img/badges/1.0/svg/console-badge-logo-dark.svg" alt="Console - Developer Tool of the Week" /></a>
 
 # Demo
 
@@ -36,48 +38,48 @@ VERSION: $(cat VERSION)
 
 ## Arch Linux
 
-${BLOCK}
+${CODE}
 paru -S sysz
-${BLOCK}
+${CODE}
 
 ## NixOS
 
-${BLOCK}
+${CODE}
 nix-env -iA nixos.sysz
-${BLOCK}
+${CODE}
 
 ## Using Nix
 
-${BLOCK}
+${CODE}
 nix-env -iA nixpkgs.sysz
-${BLOCK}
+${CODE}
 
 ## Using [\`bin\`](https://github.com/marcosnils/bin)
 
-${BLOCK}
+${CODE}
 bin install https://github.com/joehillen/sysz
-${BLOCK}
+${CODE}
 
 ## Direct Download
 
-${BLOCK}sh
+${CODE}sh
 wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
 chmod +x ~/.bin/sysz
-${BLOCK}
+${CODE}
 
 ## From Source
 
-${BLOCK}sh
+${CODE}sh
 git clone https://github.com/joehillen/sysz.git
 cd sysz
 sudo make install # /usr/local/bin/sysz
-${BLOCK}
+${CODE}
 
 # Usage
 
-${BLOCK}text
-$(./sysz -h 2>&1 | sed -e 's:/home/[a-z]\+/.cache:$XDG_CACHE_HOME:')
-${BLOCK}
+${CODE}text
+$(./sysz -h 2>&1 | sed -e "s:/home/[a-z]\+/.cache:\$XDG_CACHE_HOME:")
+${CODE}
 
 # Acknowledgements
 
