@@ -463,27 +463,21 @@ _sysz_manager_prompt() {
 }
 
 _sysz_daemon_reload_prompt() {
+  local managers
   (
     if [[ $EUID -ne 0 ]]; then
-      echo '[user] daemon-reload'
+      echo 'user'
     fi
-    echo '[system] daemon-reload'
+    echo 'system'
   ) |
     fzf \
       --multi \
       --no-info \
-      --prompt="Reload: " |
-    readarray -t RELOADS || exit $?
+      --prompt="daemon-reload: " |
+    readarray -t managers || exit $?
 
-  for RELOAD in "${RELOADS[@]}"; do
-    case $RELOAD in
-    '[user] daemon-reload')
-      _sysz_systemctl --user daemon-reload >&2
-      ;;
-    '[system] daemon-reload')
-      _sysz_systemctl --system daemon-reload >&2
-      ;;
-    esac
+  for mgr in "${managers[@]}"; do
+    _sysz_systemctl "--$mgr" daemon-reload >&2
   done
 }
 
