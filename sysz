@@ -16,6 +16,9 @@ RED=$'\e[31m'
 declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
+declare CMD
+declare -a CMDS
+declare -a ARGS
 
 _sysz_keys() {
   cat <<EOF
@@ -99,34 +102,53 @@ EOF
   exit 0
 }
 
-_sysz_debug() {
-  echo "$(date)" "$@" >>sysz.debug
+_sysz_quit() {
+  [[ $DEBUG = true ]] && cat sysz.debug >&2
+  exit "$1"
 }
 
+_sysz_error() {
+  echo "ERROR: $*" >&2
+  _sysz_quit 1
+}
+
+_sysz_debug() {
+  [[ $DEBUG = true ]] && echo "$(date -Isec) $*" >>sysz.debug
+}
 _sysz_run() {
-  [[ $VERBOSE = true ]] && _sysz_debug '>' "$@"
-  "$@" || return $?
+  _sysz_debug "> $*"
+  "$@" || _sysz_error "Failed: $*"
+}
+
+_sysz_ctl() {
+  _sysz_run systemctl "$@"
+}
+
+_sysz_verbose() {
+  [[ $VERBOSE = true ]] && echo '>' "$@" >&2
+  _sysz_run "$@"
 }
 
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_run sudo systemctl "$@"
+    _sysz_verbose sudo systemctl "$@"
   else
-    _sysz_run systemctl "$@"
+    [[ $VERBOSE = true ]] && echo systemctl "$@"
+    _sysz_verbose systemctl "$@"
   fi
 }
 
 _sysz_journalctl() {
   if [[ $1 = --user ]]; then
     # use --user-unit flag if it's a user unit
-    _sysz_run journalctl --user-unit="$2" "${@:3}"
+    _sysz_verbose journalctl --user-unit="$2" "${@:3}"
   else
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root
-      _sysz_run sudo journalctl --unit="$2" "${@:3}"
+      _sysz_verbose sudo journalctl --unit="$2" "${@:3}"
     else
-      _sysz_run journalctl --unit="$2" "${@:3}"
+      _sysz_verbose journalctl --unit="$2" "${@:3}"
     fi
   fi
 
@@ -141,14 +163,13 @@ _sysz_mgr() {
     echo --system
     ;;
   *)
-    echo "ERROR: Unknown manager: $1" >&2
-    exit 1
+    _sysz_error "Unknown manager: $1"
     ;;
   esac
 }
 
 _fzf_cat() {
-  SYSTEMD_COLORS=1 _sysz_systemctl "$(_sysz_mgr "$1")" cat -- "$2"
+  SYSTEMD_COLORS=1 _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
 _fzf_preview() {
@@ -162,13 +183,12 @@ _fzf_preview() {
   if [[ $unit = *@.* ]]; then
     _fzf_cat "${args[@]}"
   else
-    SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$unit"
+    SYSTEMD_COLORS=1 _sysz_ctl "$mgr" status --no-pager -- "$unit"
   fi
-  exit 0
 }
 
 _sysz_show() {
-  _sysz_systemctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
+  _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
 _sysz_ls() {
@@ -202,7 +222,7 @@ _sysz_ls() {
   esac
 
   for mgr in "${MANAGERS[@]}"; do
-    _sysz_systemctl "--$mgr" \
+    _sysz_ctl "--$mgr" \
       --legend=false \
       --full \
       --plain \
@@ -210,7 +230,8 @@ _sysz_ls() {
       --all \
       "$@" |
       grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
-      sed -e "s/^/$color/;s/\$/$reset/" |
+      sed -Ee 's/ +/ /g;' |
+      sed -Ee 's,^([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,'"$color"'\1'"$reset"'\3,' |
       sed -e "s/^/[${mgr:0:1}] /"
   done
 }
@@ -283,10 +304,10 @@ _sysz_units() {
 # check fzf version
 MIN_FZF=0.27.1
 if [[ "$(printf '%s\n' "$MIN_FZF" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF" ]]; then
-  echo "ERROR: fzf >= $MIN_FZF required" >&2
-  echo "https://github.com/junegunn/fzf#upgrading-fzf" >&2
-  exit 1
+  _sysz_error "fzf >= $MIN_FZF required. https://github.com/junegunn/fzf#upgrading-fzf"
 fi
+
+_sysz_debug "fzf version: $(fzf --version)"
 
 # root does not have user units
 if [[ $EUID -eq 0 ]]; then
@@ -295,7 +316,6 @@ else
   MANAGERS=(user system)
 fi
 
-declare -a STATES
 while [[ -n $1 ]]; do
   case $1 in
   -u | --user)
@@ -328,6 +348,10 @@ while [[ -n $1 ]]; do
     echo "$PROG" $SYSZ_VERSION
     exit 0
     ;;
+  --debug)
+    DEBUG=true
+    shift
+    ;;
   -V | --verbose)
     VERBOSE=true
     shift
@@ -341,11 +365,15 @@ while [[ -n $1 ]]; do
   esac
 done
 
+_sysz_debug "MANAGERS=(${MANAGERS[*]})"
+_sysz_debug "STATES=(${STATES[*]})"
+_sysz_debug "TYPES=(${TYPES[*]})"
+_sysz_debug "VERBOSE=$VERBOSE"
+
 _sysz_check_states() {
   for state in "${STATES[@]}"; do
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
-      echo "ERROR: Invalid state: $state" >&2
-      exit 1
+      _sysz_error "Invalid state: $state"
     fi
   done
 }
@@ -353,8 +381,7 @@ _sysz_check_states() {
 _sysz_check_types() {
   for unit_type in "${TYPES[@]}"; do
     if [[ -n $unit_type ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
-      echo "ERROR: Invalid type: $unit_type" >&2
-      exit 1
+      _sysz_error "Invalid type: $unit_type"
     fi
   done
 }
@@ -362,8 +389,6 @@ _sysz_check_types() {
 _sysz_check_states
 _sysz_check_types
 
-declare CMD
-declare -a ARGS
 while [[ -n $1 ]]; do
   case $1 in
   _fzf_preview)
@@ -414,8 +439,7 @@ while [[ -n $1 ]]; do
     break
     ;;
   -*)
-    echo "ERROR: Unknown option: $1" 2>&1
-    exit 1
+    _sysz_error "Unknown option: $1"
     ;;
   *)
     # assume the next argument is a command name
@@ -424,6 +448,9 @@ while [[ -n $1 ]]; do
   esac
   shift
 done
+
+_sysz_debug "CMD=$CMD"
+_sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
@@ -450,7 +477,9 @@ _sysz_mgr_prompt() {
       --multi \
       --no-info \
       --prompt="Manager: " |
-    readarray -t MANAGERS || exit $?
+    readarray -t MANAGERS || _sysz_quit $?
+
+  _sysz_debug "Managers: ${MANAGERS[*]}"
 }
 
 _sysz_daemon_reload_prompt() {
@@ -465,7 +494,9 @@ _sysz_daemon_reload_prompt() {
       --multi \
       --no-info \
       --prompt="daemon-reload: " |
-    readarray -t managers || exit $?
+    readarray -t managers || _sysz_quit $?
+
+  _sysz_debug "daemon-reload: ${managers[*]}"
 
   for mgr in "${managers[@]}"; do
     _sysz_systemctl "--$mgr" daemon-reload >&2
@@ -505,7 +536,9 @@ _sysz_states_prompt() {
       --multi \
       --no-sort \
       --prompt="States: " |
-    readarray -t picked || exit $?
+    readarray -t picked || _sysz_quit $?
+
+  _sysz_debug "States: ${picked[*]}"
 
   STATES=()
   for state in "${picked[@]}"; do
@@ -534,7 +567,9 @@ _sysz_types_prompt() {
       --multi \
       --no-sort \
       --prompt="Types: " |
-    readarray -t picked || exit $?
+    readarray -t picked || _sysz_quit $?
+
+  _sysz_debug "Types: ${picked[*]}"
 
   TYPES=()
   for type in "${picked[@]}"; do
@@ -567,8 +602,9 @@ while :; do
     readarray -t PICKS
 
   KEY=${PICKS[0]}
-  [[ $VERBOSE = true ]] && echo "KEY: $KEY" >&2
+  _sysz_debug "KEY: $KEY"
   UNITS=("${PICKS[@]:1}")
+  _sysz_debug "UNITS: ${UNITS[*]}"
 
   case $KEY in
   ctrl-r)
@@ -590,16 +626,13 @@ while :; do
   esac
 
   if [[ ${#UNITS[@]} -eq 0 ]]; then
-    exit 1
+    _sysz_quit 1
   fi
 
   break
 
 done
 
-[[ $VERBOSE = true ]] && printf 'UNIT: %s\n' "${UNITS[@]}" >&2
-
-declare -a CMDS
 if [[ -n $CMD ]]; then
   CMDS=("$CMD")
 else
@@ -610,12 +643,12 @@ else
     MULTI=true
   else
     UNIT=${UNITS[0]}
+    _sysz_debug "UNIT: $UNIT"
 
     if [[ $UNIT = *@.* ]]; then
       read -r -p "$UNIT requires a parameter: " PARAM ||
         if [[ -z $PARAM ]]; then
-          echo "ERROR: $UNIT requires a parameter"
-          exit 1
+          _sysz_error "$UNIT requires a parameter"
         fi
 
       UNIT=${UNIT/\@/\@${PARAM}}
@@ -683,11 +716,12 @@ else
       # show
       echo show "${ARGS[*]}"
     ) |
-    readarray -t CMDS || exit $?
+    readarray -t CMDS || _sysz_quit $?
 fi
+_sysz_debug "CMDS: ${CMDS[*]}"
 
 if [[ ${#CMDS[@]} -eq 0 ]]; then
-  exit 1
+  _sysz_quit 1
 fi
 
 for PICK in "${UNITS[@]}"; do
@@ -708,14 +742,14 @@ for PICK in "${UNITS[@]}"; do
       SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
     cat | show)
-      _sysz_systemctl "$mgr" "$CMD" "${ARGS[@]}" -- "$UNIT" || exit $?
+      _sysz_systemctl "$mgr" "$CMD" "${ARGS[@]}" -- "$UNIT"
       ;;
     *)
       # shellcheck disable=2086
       _sysz_systemctl "$mgr" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
       SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$UNIT"
       if [[ ${#UNITS[@]} -eq 1 ]]; then
-        exit $CODE
+        _sysz_quit $CODE
       fi
       ;;
     esac
