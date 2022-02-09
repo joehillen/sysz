@@ -111,6 +111,7 @@ ARGS are passed to the systemctl command for each selected unit.
 Keybindings:
   TAB           Toggle selection.
   ctrl-v        'cat' the unit in the preview window.
+  ctrl-m        Switch manager between user or system
   ctrl-s        Select states to match. Selection is reset.
   ctrl-r        Run daemon-reload. Selection is reset.
   ctrl-p        History previous.
