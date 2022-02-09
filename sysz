@@ -89,9 +89,13 @@ EOF
   exit 0
 }
 
+_sysz_debug() {
+  echo "$(date)" "$@" >>sysz.debug
+}
+
 _sysz_run() {
-  [[ $VERBOSE = true ]] && echo '>' "$@" >&2
-  eval "$@" || return $?
+  [[ $VERBOSE = true ]] && _sysz_debug '>' "$@"
+  "$@" || return $?
 }
 
 _sysz_systemctl() {
