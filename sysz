@@ -148,15 +148,16 @@ _fzf_cat() {
 }
 
 _fzf_preview() {
-  local MANAGER
-  MANAGER=$(_sysz_manager "$1")
-  local UNIT
-  UNIT=${1##* }
+  local mgr
+  local unit
+  IFS=" " read -r -a args <<< "$1"
+  mgr=$(_sysz_manager "${args[0]}")
+  unit=${args[1]}
 
-  if [[ $UNIT = *@.* ]]; then
+  if [[ $unit = *@.* ]]; then
     _fzf_cat "$@"
   else
-    SYSTEMD_COLORS=1 systemctl "$MANAGER" status --no-pager -- "$UNIT"
+    SYSTEMD_COLORS=1 systemctl "$mgr" status --no-pager -- "$unit"
   fi
   exit 0
 }
