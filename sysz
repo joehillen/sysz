@@ -132,12 +132,12 @@ _sysz_journalctl() {
 
 }
 
-_sysz_manager() {
+_sysz_mgr() {
   case ${1%% *} in
-  '[user]' | user)
+  '[u]' | '[user]' | user | --user)
     echo --user
     ;;
-  '[system]' | system)
+  '[s]' | '[system]' | system | --system)
     echo --system
     ;;
   *)
@@ -148,36 +148,27 @@ _sysz_manager() {
 }
 
 _fzf_cat() {
-  local MANAGER
-  MANAGER=$(_sysz_manager "$1")
-  local UNIT
-  UNIT=${1##* }
-
-  SYSTEMD_COLORS=1 systemctl "$MANAGER" cat -- "$UNIT"
+  SYSTEMD_COLORS=1 _sysz_systemctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
 _fzf_preview() {
-  local mgr
   local unit
+  local args
+  local mgr
   IFS=" " read -r -a args <<<"$1"
-  mgr=$(_sysz_manager "${args[0]}")
+  mgr=$(_sysz_mgr "${args[0]}")
   unit=${args[1]}
 
   if [[ $unit = *@.* ]]; then
-    _fzf_cat "$@"
+    _fzf_cat "${args[@]}"
   else
-    SYSTEMD_COLORS=1 systemctl "$mgr" status --no-pager -- "$unit"
+    SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$unit"
   fi
   exit 0
 }
 
 _sysz_show() {
-  local manager
-  manager=$(_sysz_manager "$1")
-  local unit
-  unit=${1##* }
-
-  _sysz_systemctl "$manager" show "$unit" -p "$2" --value
+  _sysz_systemctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
 _sysz_ls() {
@@ -220,7 +211,7 @@ _sysz_ls() {
       "$@" |
       grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
       sed -e "s/^/$color/;s/\$/$reset/" |
-      sed -e "s/^/[$mgr] /"
+      sed -e "s/^/[${mgr:0:1}] /"
   done
 }
 
@@ -445,7 +436,7 @@ function join_by {
   fi
 }
 
-_sysz_manager_prompt() {
+_sysz_mgr_prompt() {
   if [[ $EUID -eq 0 ]]; then
     echo system
     return
@@ -593,7 +584,7 @@ while :; do
     continue
     ;;
   ctrl-x)
-    _sysz_manager_prompt
+    _sysz_mgr_prompt
     continue
     ;;
   esac
@@ -701,28 +692,28 @@ fi
 
 for PICK in "${UNITS[@]}"; do
 
-  MANAGER=$(_sysz_manager "$PICK")
+  mgr=$(_sysz_mgr "$PICK")
   UNIT=${PICK##* }
 
   for CMD in "${CMDS[@]}"; do
     case ${CMD%% *} in
     journal)
-      _sysz_journalctl "$MANAGER" "$UNIT" -xe "${ARGS[@]}"
+      _sysz_journalctl "$mgr" "$UNIT" -xe "${ARGS[@]}"
       ;;
     follow)
-      _sysz_journalctl "$MANAGER" "$UNIT" -xef "${ARGS[@]}"
+      _sysz_journalctl "$mgr" "$UNIT" -xef "${ARGS[@]}"
       ;;
     status)
       # shellcheck disable=2086
-      SYSTEMD_COLORS=1 _sysz_systemctl "$MANAGER" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
+      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
       ;;
     cat | show)
-      _sysz_systemctl "$MANAGER" "$CMD" "${ARGS[@]}" -- "$UNIT" || exit $?
+      _sysz_systemctl "$mgr" "$CMD" "${ARGS[@]}" -- "$UNIT" || exit $?
       ;;
     *)
       # shellcheck disable=2086
-      _sysz_systemctl "$MANAGER" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
-      SYSTEMD_COLORS=1 _sysz_systemctl "$MANAGER" status --no-pager -- "$UNIT"
+      _sysz_systemctl "$mgr" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
+      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$UNIT"
       if [[ ${#UNITS[@]} -eq 1 ]]; then
         exit $CODE
       fi
