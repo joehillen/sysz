@@ -15,10 +15,10 @@ _sysz_keys() {
   cat <<EOF
 Keybindings:
   TAB           Toggle selection.
-  ctrl-v        'cat' the unit in the preview window.
-  ctrl-m        Switch manager between user or system
-  ctrl-s        Select states to match. Selection is reset.
   ctrl-r        Run daemon-reload. Selection is reset.
+  ctrl-x        Switch between user or system managers. Selection is reset.
+  ctrl-s        Select states to match. Selection is reset.
+  ctrl-v        'cat' the unit in the preview window.
   ctrl-p        History previous.
   ctrl-n        History next.
   ?             Show keybindings.
@@ -439,7 +439,7 @@ while :; do
     fzf \
       --multi \
       --ansi \
-      --expect=ctrl-r,ctrl-s,ctrl-m \
+      --expect=ctrl-r,ctrl-s,ctrl-x \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
       --header '? for keybindings' \
@@ -462,7 +462,7 @@ while :; do
     _sysz_states
     continue
     ;;
-  ctrl-m)
+  ctrl-x)
     _sysz_manager_prompt
     continue
     ;;
