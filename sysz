@@ -196,7 +196,10 @@ _sysz_sort() {
 }
 
 _sysz_list() {
+
+  local MANAGER=$1
   local args
+  local color_code=''
   declare -a args
   args=(
     --all
@@ -205,30 +208,29 @@ _sysz_list() {
     --plain
     --no-pager
     "${STATES[@]}"
-    "$@"
+    "--$MANAGER"
   )
-  (
-    systemctl list-units "${args[@]}"
-    systemctl list-unit-files "${args[@]}"
-  ) | sort -u -t ' ' -k1,1 |
+  {
+    systemctl list-units "${args[@]}" | sort
+    systemctl list-unit-files "${args[@]}" | sort
+  } |
     while read -r line; do
       unit=${line%% *}
       if [[ $line = *" active "* ]]; then
-        printf '\033[0;32m%s\033[0m\n' "$unit" # green
+        color_code='32' # green
       elif [[ $line = *" failed "* ]]; then
-        printf '\033[0;31m%s\033[0m\n' "$unit" # red
+        color_code='31' # yellow
       elif [[ $line = *" not-found "* ]]; then
-        printf '\033[1;33m%s\033[0m\n' "$unit" # red
-      else
-        echo "$unit"
+        color_code='33' # orange
       fi
-    done
+      printf '[%s] \033[0;%sm%s\033[0m\n' "$MANAGER" "$color_code" "$unit"
+    done | awk '!x[$0]++'
 }
 
 _sysz_list_units() {
   for MANAGER in "${MANAGERS[@]}"; do
-    _sysz_list "--$MANAGER" | sed -e "s/^/[$MANAGER] /"
-  done | _sysz_sort
+    _sysz_list "$MANAGER"
+  done
 }
 
 # main
