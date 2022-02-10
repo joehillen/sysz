@@ -166,10 +166,9 @@ _sysz_verbose() {
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo systemctl "$@"
+    _sysz_verbose sudo systemctl --wait "$@"
   else
-    [[ $VERBOSE = true ]] && echo systemctl "$@"
-    _sysz_verbose systemctl "$@"
+    _sysz_verbose systemctl --wait "$@"
   fi
 }
 
