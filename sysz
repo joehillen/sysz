@@ -303,6 +303,10 @@ _sysz_units() {
 
   elif [[ ${#TYPES[@]} -gt 0 ]]; then
     for unit_type in "${TYPES[@]}"; do
+      if [[ $unit_type = template ]]; then
+        _sysz_ls list-unit-files '*@.*'
+        continue
+      fi
       for state in failed active not-found; do
         _sysz_ls list-units "--state=$state" "--type=$unit_type"
       done
@@ -629,6 +633,7 @@ _sysz_types_prompt() {
       grep -Ev '(service|timer)' |
       sort -u |
       grep -v '^$'
+    echo template
   ) |
     _sysz_fzf \
       --multi \
