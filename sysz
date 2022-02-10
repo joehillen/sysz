@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 
+# shell options
 #set -x
 set -o pipefail
 shopt -s lastpipe
 shopt -s extglob
 
+# constants
 export SHELL=bash
-
+MIN_FZF_VERSION=0.27.1
 PROG=$(basename "$0")
 SYSZ_VERSION=1.4.3
-SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 GREEN=$'\e[32m'
 YELLOW=$'\e[33m'
 RED=$'\e[31m'
+
+# environment variables
+SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
+
+# global variables
+declare VERBOSE
+declare DEBUG
 declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
-declare CMD
-declare -a CMDS
-declare -a ARGS
 
 _sysz_keys() {
   cat <<EOF
@@ -302,9 +307,8 @@ _sysz_units() {
 # main
 
 # check fzf version
-MIN_FZF=0.27.1
-if [[ "$(printf '%s\n' "$MIN_FZF" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF" ]]; then
-  _sysz_error "fzf >= $MIN_FZF required. https://github.com/junegunn/fzf#upgrading-fzf"
+if [[ "$(printf '%s\n' "$MIN_FZF_VERSION" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF_VERSION" ]]; then
+  _sysz_error "fzf >= $MIN_FZF_VERSION required. https://github.com/junegunn/fzf#upgrading-fzf"
 fi
 
 _sysz_debug "fzf version: $(fzf --version)"
@@ -410,32 +414,32 @@ while [[ -n $1 ]]; do
     ;;
   # Handle short names
   re)
-    CMD=restart
+    cmd=restart
     ;;
   s)
-    CMD=status
+    cmd=status
     ;;
   ed)
-    CMD=edit
+    cmd=edit
     ;;
   en)
-    CMD=enable
+    cmd=enable
     ;;
   d | dis)
-    CMD=disable
+    cmd=disable
     ;;
   j)
-    CMD=journal
+    cmd=journal
     ;;
   f)
-    CMD=follow
+    cmd=follow
     ;;
   c)
-    CMD="cat"
+    cmd="cat"
     ;;
   --)
     shift
-    ARGS=("$@")
+    args=("$@")
     break
     ;;
   -*)
@@ -443,13 +447,13 @@ while [[ -n $1 ]]; do
     ;;
   *)
     # assume the next argument is a command name
-    CMD=$1
+    cmd=$1
     ;;
   esac
   shift
 done
 
-_sysz_debug "CMD=$CMD"
+_sysz_debug "cmd=$cmd"
 _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
@@ -582,9 +586,16 @@ _sysz_types_prompt() {
   _sysz_check_types
 }
 
+declare key
+declare cmd
+declare multi
+declare -a picks
+declare -a cmds
+declare -a args
+
 while :; do
-  UNITS=()
-  KEY=
+  picks=()
+  key=
 
   # prompt units
   _sysz_units |
@@ -599,14 +610,23 @@ while :; do
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=60% |
-    readarray -t PICKS
+    readarray -t results || _sysz_quit $?
 
-  KEY=${PICKS[0]}
-  _sysz_debug "KEY: $KEY"
-  UNITS=("${PICKS[@]:1}")
-  _sysz_debug "UNITS: ${UNITS[*]}"
+  # The first result from fzf is always the key
+  key=${results[0]}
+  _sysz_debug "key: $key"
 
-  case $KEY in
+  # results are of the form: [s] foo.service This is a description
+  for result in "${results[@]:1}"; do
+    _sysz_debug "RESULT: $result"
+    IFS=" " read -r -a words <<<"$result"
+    # picks are of the form: [s] foo.service
+    picks+=("${words[@]:0:2}")
+  done
+
+  _sysz_debug "picks: ${picks[*]}"
+
+  case $key in
   ctrl-r)
     _sysz_daemon_reload_prompt
     continue
@@ -625,7 +645,7 @@ while :; do
     ;;
   esac
 
-  if [[ ${#UNITS[@]} -eq 0 ]]; then
+  if [[ ${#picks[@]} -eq 0 ]]; then
     _sysz_quit 1
   fi
 
@@ -633,33 +653,35 @@ while :; do
 
 done
 
-if [[ -n $CMD ]]; then
-  CMDS=("$CMD")
+if [[ -n $cmd ]]; then
+  cmds=("$cmd")
 else
 
-  if [[ ${#UNITS[@]} -gt 1 ]]; then
-    printf -v PREVIEW '%s\n' "${UNITS[@]}"
-    PREVIEW_CMD="echo -n '$PREVIEW'"
-    MULTI=true
+  if [[ ${#picks[@]} -gt 1 ]]; then
+    printf -v preview '%s\n' "${picks[@]}"
+    preview_cmd="echo -n '$preview'"
+    multi=true
   else
-    UNIT=${UNITS[0]}
-    _sysz_debug "UNIT: $UNIT"
+    pick=${picks[0]}
+    _sysz_debug "pick: $pick"
 
-    if [[ $UNIT = *@.* ]]; then
-      read -r -p "$UNIT requires a parameter: " PARAM ||
-        if [[ -z $PARAM ]]; then
-          _sysz_error "$UNIT requires a parameter"
+    # Handle template units
+    if [[ $pick = *@.* ]]; then
+      read -r -p "$pick requires a parameter: " param ||
+        if [[ -z $param ]]; then
+          _sysz_error "$pick requires a parameter"
         fi
 
-      UNIT=${UNIT/\@/\@${PARAM}}
-      UNITS[0]=$UNIT
+      pick=${pick/\@/\@${param}}
+      picks[0]=$pick
     fi
 
-    ACTIVE_STATE=$(_sysz_show "$UNIT" ActiveState)
-    LOAD_STATE=$(_sysz_show "$UNIT" LoadState)
-    UNIT_FILE_STATE=$(_sysz_show "$UNIT" UnitFileState)
-    CAN_RELOAD=$(_sysz_show "$UNIT" CanReload)
-    PREVIEW_CMD="'${BASH_SOURCE[0]}' _fzf_preview '$UNIT'"
+    # Get states to filter the command options
+    active_state=$(_sysz_show "$pick" ActiveState)
+    load_state=$(_sysz_show "$pick" LoadState)
+    unit_file_state=$(_sysz_show "$pick" UnitFileState)
+    can_reload=$(_sysz_show "$pick" CanReload)
+    preview_cmd="'${BASH_SOURCE[0]}' _fzf_preview '$pick'"
   fi
 
   # prompt commands
@@ -669,87 +691,92 @@ else
     --no-info \
     --no-sort \
     --prompt="Commands: " \
-    --preview="$PREVIEW_CMD" \
+    --preview="$preview_cmd" \
     --preview-window=80% < <(
       # status
-      echo status "${ARGS[*]}"
+      echo status "${args[*]}"
       # restart
-      [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}" # red
+      [[ $multi = true || $active_state = active ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' restart "${args[*]}" # red
       # start
-      [[ $MULTI = true || $ACTIVE_STATE != active ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}" # green
+      [[ $multi = true || $active_state != active ]] &&
+        printf '\033[0;32m%s\033[0m %s\n' start "${args[*]}" # green
       # stop
-      [[ $MULTI = true || $ACTIVE_STATE = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}" # red
+      [[ $multi = true || $active_state = active ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' stop "${args[*]}" # red
       # enable
-      [[ $MULTI = true || $UNIT_FILE_STATE != enabled ]] &&
+      [[ $multi = true || $unit_file_state != enabled ]] &&
         {
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}" # green
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${ARGS[*]}"
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "${args[*]}" # green
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${args[*]}"
         }
       # disable
-      [[ $MULTI = true || $UNIT_FILE_STATE = enabled ]] &&
+      [[ $multi = true || $unit_file_state = enabled ]] &&
         {
-          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}" # red
-          printf '\033[0;31m%s\033[0m %s\n' disable "--now ${ARGS[*]}"
+          printf '\033[0;31m%s\033[0m %s\n' disable "${args[*]}" # red
+          printf '\033[0;31m%s\033[0m %s\n' disable "--now ${args[*]}"
         }
 
       # journal
-      echo journal "${ARGS[*]}"
-      echo follow "${ARGS[*]}"
+      echo journal "${args[*]}"
+      echo follow "${args[*]}"
 
       # reload
-      [[ $MULTI = true || $CAN_RELOAD = yes ]] &&
-        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}" # green
+      [[ $multi = true || $can_reload = yes ]] &&
+        printf '\033[0;37m%s\033[0m %s\n' reload "${args[*]}" # green
 
       # mask
-      [[ $MULTI = true || ($UNIT_FILE_STATE != masked && $LOAD_STATE != masked) ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' mask "${ARGS[*]}" # red
-      [[ $MULTI = true || $UNIT_FILE_STATE = masked || $LOAD_STATE = masked ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' unmask "${ARGS[*]}" # green
+      [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
+        printf '\033[0;31m%s\033[0m %s\n' mask "${args[*]}" # red
+      [[ $multi = true || $unit_file_state = masked || $load_state = masked ]] &&
+        printf '\033[0;32m%s\033[0m %s\n' unmask "${args[*]}" # green
 
       # cat
-      echo cat "${ARGS[*]}"
+      echo cat "${args[*]}"
       # edit
-      echo edit "${ARGS[*]}"
+      echo edit "${args[*]}"
       # show
-      echo show "${ARGS[*]}"
+      echo show "${args[*]}"
     ) |
-    readarray -t CMDS || _sysz_quit $?
+    readarray -t cmds || _sysz_quit $?
 fi
-_sysz_debug "CMDS: ${CMDS[*]}"
+_sysz_debug "cmds: ${cmds[*]}"
 
-if [[ ${#CMDS[@]} -eq 0 ]]; then
+if [[ ${#cmds[@]} -eq 0 ]]; then
   _sysz_quit 1
 fi
 
-for PICK in "${UNITS[@]}"; do
+for pick in "${picks[@]}"; do
 
-  mgr=$(_sysz_mgr "$PICK")
-  UNIT=${PICK##* }
+  mgr=$(_sysz_mgr "$pick")
+  pick=${pick##* }
 
-  for CMD in "${CMDS[@]}"; do
-    case ${CMD%% *} in
+  for cmd in "${cmds[@]}"; do
+    case ${cmd%% *} in
     journal)
-      _sysz_journalctl "$mgr" "$UNIT" -xe "${ARGS[@]}"
+      _sysz_journalctl "$mgr" "$pick" -xe "${args[@]}"
+      _sysz_quit $?
       ;;
     follow)
-      _sysz_journalctl "$mgr" "$UNIT" -xef "${ARGS[@]}"
+      _sysz_journalctl "$mgr" "$pick" -xef "${args[@]}"
+      _sysz_quit $?
       ;;
     status)
       # shellcheck disable=2086
-      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" $CMD --no-pager "${ARGS[@]}" -- "$UNIT"
+      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" $cmd --no-pager "${args[@]}" -- "$pick"
+      _sysz_quit $?
       ;;
     cat | show)
-      _sysz_systemctl "$mgr" "$CMD" "${ARGS[@]}" -- "$UNIT"
+      _sysz_systemctl "$mgr" "$cmd" "${args[@]}" -- "$pick"
+      _sysz_quit $?
       ;;
     *)
       # shellcheck disable=2086
-      _sysz_systemctl "$mgr" $CMD "${ARGS[@]}" -- "$UNIT" || CODE=$?
-      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$UNIT"
-      if [[ ${#UNITS[@]} -eq 1 ]]; then
-        _sysz_quit $CODE
+      _sysz_systemctl "$mgr" $cmd "${args[@]}" -- "$pick"
+      code=$?
+      SYSTEMD_COLORS=1 _sysz_systemctl "$mgr" status --no-pager -- "$pick"
+      if [[ ${#picks[@]} -eq 1 ]]; then
+        _sysz_quit "$code"
       fi
       ;;
     esac
