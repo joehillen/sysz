@@ -713,7 +713,7 @@ while :; do
       --bind "?:preview(echo '$(_sysz_keys)')" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-      --preview-window=60% |
+      --preview-window=down |
     readarray -t results || _sysz_quit $?
   _sysz_debug "results=${results[*]}"
 
