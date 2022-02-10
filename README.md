@@ -87,6 +87,8 @@ OPTS:
   -u, --user               Only show --user units
   --sys, --system          Only show --system units
   -s STATE, --state STATE  Only show units in STATE (repeatable)
+  -t TYPE, --type TYPE     Only show units of TYPE (repeatable)
+  --no-color               Disable colors
   -V, --verbose            Print the systemctl command
   -v, --version            Print the version
   -h, --help               Print this message
@@ -111,34 +113,39 @@ ARGS are passed to the systemctl command for each selected unit.
 Keybindings:
   TAB           Toggle selection.
   ctrl-r        Run daemon-reload. Selection is reset.
-  ctrl-a        Switch between user or system managers. Selection is reset.
+  ctrl-x        Switch between user or system managers. Selection is reset.
   ctrl-s        Select states to match. Selection is reset.
+  ctrl-t        Select types to match. Selection is reset.
   ctrl-v        'cat' the unit in the preview window.
   ctrl-p        History previous.
   ctrl-n        History next.
   ?             Show keybindings.
 
-History:
-  sysz is stored in $XDG_CACHE_HOME/sysz/history
-  This can be changed with the environment variable: SYSZ_HISTORY
+Environment Variables:
+  SYSZ_HISTORY           Command history (default: $XDG_CACHE_HOME/sysz/history)
+  SYSZ_COLORS            Use colors (default: on)
 
 Some units are colored based on state:
   green       active
   red         failed
   yellow      not-found
+  template    blue
+  other       cyan
 
 Examples:
-  sysz -u                      User units
-  sysz --sys -s active          Active system units
-  sysz --user --state failed   Failed user units
+  sysz -u                        User units
+  sysz --sys -s active           Active system units
+  sysz --user --state failed     Failed user units
+  sysz --type socket             Sockets
+  sysz -s inactive -t service    Inactive services
 
 Examples with commands:
-  sysz start                  Start a unit
-  sysz --sys s                Get the status of system units
-  sysz --user edit            Edit user units
-  sysz s -- -n100             Show status with 100 log lines
-  sysz --sys -s active stop    Stop an active system unit
-  sysz -u --state failed r    Restart failed user units
+  sysz start                     Start a unit
+  sysz --sys s                   Get the status of system units
+  sysz --user edit               Edit user units
+  sysz s -- -n100                Show status with 100 log lines
+  sysz --sys -s active stop      Stop an active system unit
+  sysz -u --state failed r       Restart failed user units
 ```
 
 # Acknowledgements
