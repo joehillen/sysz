@@ -11,9 +11,14 @@ export SHELL=bash
 MIN_FZF_VERSION=0.27.1
 PROG=$(basename "$0")
 SYSZ_VERSION=1.4.3
+
+# colors
+RESET=$'\e[0m'
+RED=$'\e[31m'
 GREEN=$'\e[32m'
 YELLOW=$'\e[33m'
-RED=$'\e[31m'
+BLUE=$'\e[34m'
+CYAN=$'\e[36m'
 
 # environment variables
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
@@ -79,14 +84,16 @@ ARGS are passed to the systemctl command for each selected unit.
 
 $(_sysz_keys)
 
-History:
-  $PROG is stored in $SYSZ_HISTORY
-  This can be changed with the environment variable: SYSZ_HISTORY
+Environment Variables:
+  SYSZ_HISTORY           Command history (default: $SYSZ_HISTORY)
+  SYSZ_COLORS            Use colors (default: on)
 
 Some units are colored based on state:
   green       active
   red         failed
   yellow      not-found
+  template    blue
+  other       cyan
 
 Examples:
   $PROG -u                        User units
@@ -126,7 +133,8 @@ _sysz_run() {
 }
 
 _sysz_ctl() {
-  _sysz_run systemctl "$@"
+  _sysz_debug "> systemctl $*"
+  systemctl "$@"
 }
 
 _sysz_verbose() {
@@ -196,14 +204,18 @@ _sysz_show() {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
+_sysz_color_line() {
+  local color
+  color=$1
+  sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$RESET"'\4,'
+}
+
 _sysz_ls() {
   local color
   local state
   local filter
-  local reset
 
-  reset=$'\e[0m'
-  color=$reset
+  color=$CYAN
   filter=DO_NOT_MATCH
   for arg in "$@"; do
     case $arg in
@@ -220,11 +232,11 @@ _sysz_ls() {
     --state=failed)
       color=$RED
       ;;
+    '*@.*')
+      color=$BLUE
+      ;;
     esac
   done
-
-  case $state in
-  esac
 
   for mgr in "${MANAGERS[@]}"; do
     _sysz_ctl "$(_sysz_mgr "$mgr")" \
@@ -236,7 +248,7 @@ _sysz_ls() {
       "$@" |
       grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
       sed -Ee 's/ +/ /g;' |
-      sed -Ee 's,^([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,'"$color"'\1'"$reset"'\3,' |
+      _sysz_color_line "$color" |
       sed -e "s/^/[${mgr:0:1}] /"
   done
 }
