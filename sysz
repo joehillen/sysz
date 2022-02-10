@@ -630,7 +630,7 @@ while :; do
 
   # results are of the form: [s] foo.service This is a description
   for result in "${results[@]:1}"; do
-    _sysz_debug "RESULT: $result"
+    _sysz_debug "result: $result"
     IFS=" " read -r -a words <<<"$result"
     # picks are of the form: [s] foo.service
     picks+=("${words[@]:0:2}")
