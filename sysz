@@ -739,7 +739,7 @@ else
     load_state=$(_sysz_show "$pick" LoadState)
     _sysz_debug "load_state: $load_state"
     unit_file_state=$(_sysz_show "$pick" UnitFileState)
-    _sysz_debus "unit_file_state: $unit_file_state"
+    _sysz_debug "unit_file_state: $unit_file_state"
     can_reload=$(_sysz_show "$pick" CanReload)
     _sysz_debug "can_reload: $can_reload"
     preview_cmd="'${BASH_SOURCE[0]}' _fzf_preview '$pick'"
