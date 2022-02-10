@@ -127,7 +127,7 @@ EOF
 }
 
 _sysz_quit() {
-  _sysz_debug "exit: $1"
+  _sysz_debug "exit=$1"
   [[ $DEBUG = true ]] && cat sysz.debug >&2
   exit "$1"
 }
@@ -348,13 +348,12 @@ _sysz_units() {
 }
 
 # main
+_sysz_debug "fzf version=$(fzf --version)"
 
 # check fzf version
 if [[ "$(printf '%s\n' "$MIN_FZF_VERSION" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF_VERSION" ]]; then
   _sysz_error "fzf >= $MIN_FZF_VERSION required. https://github.com/junegunn/fzf#upgrading-fzf"
 fi
-
-_sysz_debug "fzf version: $(fzf --version)"
 
 # root does not have user units
 if [[ $EUID -eq 0 ]]; then
@@ -520,7 +519,7 @@ while [[ -n $1 ]]; do
   shift
 done
 
-_sysz_debug "CMD: $CMD"
+_sysz_debug "CMD=CMD"
 _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
@@ -550,7 +549,7 @@ _sysz_mgr_prompt() {
       --prompt="Manager: " |
     readarray -t MANAGERS || _sysz_quit $?
 
-  _sysz_debug "Managers: ${MANAGERS[*]}"
+  _sysz_debug "Managers=${MANAGERS[*]}"
 }
 
 _sysz_daemon_reload_prompt() {
@@ -567,7 +566,7 @@ _sysz_daemon_reload_prompt() {
       --prompt="daemon-reload: " |
     readarray -t managers || _sysz_quit $?
 
-  _sysz_debug "daemon-reload: ${managers[*]}"
+  _sysz_debug "daemon-reload=${managers[*]}"
 
   for mgr in "${managers[@]}"; do
     _sysz_systemctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || error "daemon-reload failed"
@@ -609,7 +608,7 @@ _sysz_states_prompt() {
       --prompt="States: " |
     readarray -t picked || _sysz_quit $?
 
-  _sysz_debug "States: ${picked[*]}"
+  _sysz_debug "States=${picked[*]}"
 
   STATES=()
   for state in "${picked[@]}"; do
@@ -641,7 +640,7 @@ _sysz_types_prompt() {
       --prompt="Types: " |
     readarray -t picked || _sysz_quit $?
 
-  _sysz_debug "Types: ${picked[*]}"
+  _sysz_debug "Types=${picked[*]}"
 
   TYPES=()
   for type in "${picked[@]}"; do
@@ -660,13 +659,13 @@ _sysz_tmpl_prompt() {
   # Handle template units
   if [[ $unit = *@.* ]]; then
     read -r -p "$unit requires a parameter: " tmpl_param
-    _sysz_debug "tmpl_param: $tmpl_param"
+    _sysz_debug "tmpl_param=tmpl_param"
     if [[ -z $tmpl_param ]]; then
       _sysz_error "$unit requires a parameter"
     fi
 
     unit=${unit/\@/\@${tmpl_param}}
-    _sysz_debug "template unit: $unit"
+    _sysz_debug "template unit=$unit"
   fi
   echo "$unit"
 }
@@ -715,22 +714,22 @@ while :; do
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=60% |
     readarray -t results || _sysz_quit $?
-  _sysz_debug "results: ${results[*]}"
+  _sysz_debug "results=${results[*]}"
 
   # The first result from fzf is always the key
   key=${results[0]}
-  _sysz_debug "key: $key"
+  _sysz_debug "key=$key"
 
   # results are of the form '[s] foo.service'
   for result in "${results[@]:1}"; do
-    _sysz_debug "result: $result"
+    _sysz_debug "result=$result"
     IFS=" " read -r -a words <<<"$result"
-    _sysz_debug "words: ${words[*]}"
+    _sysz_debug "words=${words[*]}"
     # picks are of the form: [s] foo.service
     picks+=("${words[0]} ${words[1]}")
   done
 
-  _sysz_debug "picks: ${picks[*]}"
+  _sysz_debug "picks=${picks[*]}"
 
   case $key in
   ctrl-r)
@@ -766,30 +765,30 @@ else
   multi=
   if [[ ${#picks[@]} -gt 1 ]]; then
     printf -v preview '%s\n' "${picks[*]}"
-    _sysz_debug "preview: $preview"
+    _sysz_debug "preview=$preview"
     preview_cmd="echo -n '$preview'"
-    _sysz_debug "preview_cmd: $preview_cmd"
+    _sysz_debug "preview_cmd=$preview_cmd"
     multi=true
   else
     pick=${picks[0]}
-    _sysz_debug "pick: $pick"
+    _sysz_debug "pick=$pick"
 
     pick=$(_sysz_tmpl_prompt "$pick")
 
     # Get states to filter the command options
     active_state=$(_sysz_show "$pick" ActiveState)
-    _sysz_debug "active_state: $active_state"
+    _sysz_debug "active_state=$active_state"
     load_state=$(_sysz_show "$pick" LoadState)
-    _sysz_debug "load_state: $load_state"
+    _sysz_debug "load_state=$load_state"
     unit_file_state=$(_sysz_show "$pick" UnitFileState)
-    _sysz_debug "unit_file_state: $unit_file_state"
+    _sysz_debug "unit_file_state=$unit_file_state"
     can_reload=$(_sysz_show "$pick" CanReload)
-    _sysz_debug "can_reload: $can_reload"
+    _sysz_debug "can_reload=$can_reload"
     preview_cmd="'${BASH_SOURCE[0]}' _fzf_preview '$pick'"
-    _sysz_debug "preview_cmd: $preview_cmd"
+    _sysz_debug "preview_cmd=$preview_cmd"
   fi
 
-  _sysz_debug "multi: $multi"
+  _sysz_debug "multi=$multi"
 
   # prompt commands
   _sysz_fzf \
@@ -838,7 +837,7 @@ else
     ) |
     readarray -t cmds || _sysz_quit $?
 fi
-_sysz_debug "cmds: ${cmds[*]}"
+_sysz_debug "cmds=${cmds[*]}"
 
 if [[ ${#cmds[@]} -eq 0 ]]; then
   _sysz_quit 1
@@ -846,20 +845,20 @@ fi
 
 for pick in "${picks[@]}"; do
 
-  _sysz_debug "pick: $pick"
+  _sysz_debug "pick=$pick"
   mgr=$(_sysz_mgr "$pick")
-  _sysz_debug "mgr: $mgr"
+  _sysz_debug "mgr=$mgr"
   unit=${pick##* }
-  _sysz_debug "unit: $unit"
+  _sysz_debug "unit=$unit"
 
   unit=$(_sysz_tmpl_prompt "$unit")
 
-  _sysz_debug "cmds: ${cmds[*]}"
+  _sysz_debug "cmds=${cmds[*]}"
   for cmd in "${cmds[@]}"; do
-    _sysz_debug "cmd: $cmd"
+    _sysz_debug "cmd=$cmd"
     cmd=${cmd%% *}
     cmd=${cmd##* }
-    _sysz_debug "cmd: $cmd"
+    _sysz_debug "cmd=$cmd"
     case $cmd in
     journal)
       _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
