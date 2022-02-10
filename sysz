@@ -34,6 +34,8 @@ esac
 # global variables
 declare VERBOSE
 declare DEBUG
+declare CMD
+declare -a ARGS
 declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
@@ -454,32 +456,32 @@ while [[ -n $1 ]]; do
     ;;
   # Handle short names
   re)
-    cmd=restart
+    CMD=restart
     ;;
   s)
-    cmd=status
+    CMD=status
     ;;
   ed)
-    cmd=edit
+    CMD=edit
     ;;
   en)
-    cmd=enable
+    CMD=enable
     ;;
   d | dis)
-    cmd=disable
+    CMD=disable
     ;;
   j)
-    cmd=journal
+    CMD=journal
     ;;
   f)
-    cmd=follow
+    CMD=follow
     ;;
   c)
-    cmd="cat"
+    CMD="cat"
     ;;
   --)
     shift
-    args=("$@")
+    ARGS=("$@")
     break
     ;;
   -*)
@@ -487,13 +489,13 @@ while [[ -n $1 ]]; do
     ;;
   *)
     # assume the next argument is a command name
-    cmd=$1
+    CMD=$1
     ;;
   esac
   shift
 done
 
-_sysz_debug "cmd=$cmd"
+_sysz_debug "CMD: $CMD"
 _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
@@ -644,11 +646,9 @@ _sysz_tmpl_prompt() {
 }
 
 declare key
-declare cmd
 declare multi
 declare -a picks
 declare -a cmds
-declare -a args
 
 while :; do
   picks=()
@@ -712,8 +712,8 @@ while :; do
 
 done
 
-if [[ -n $cmd ]]; then
-  cmds=("$cmd")
+if [[ -n $CMD ]]; then
+  cmds=("$CMD")
 else
 
   if [[ ${#picks[@]} -gt 1 ]]; then
@@ -752,49 +752,47 @@ else
     --preview="$preview_cmd" \
     --preview-window=80% < <(
       # status
-      echo status "${args[*]}"
+      echo status "${ARGS[*]}"
       # restart
       [[ $multi = true || $active_state = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' restart "${args[*]}" # red
+        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}" # red
       # start
       [[ $multi = true || $active_state != active ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' start "${args[*]}" # green
+        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}" # green
       # stop
       [[ $multi = true || $active_state = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' stop "${args[*]}" # red
+        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}" # red
       # enable
       [[ $multi = true || $unit_file_state != enabled ]] &&
         {
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "${args[*]}" # green
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "--now ${args[*]}"
+          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}" # green
         }
       # disable
       [[ $multi = true || $unit_file_state = enabled ]] &&
         {
-          printf '\033[0;31m%s\033[0m %s\n' disable "${args[*]}" # red
-          printf '\033[0;31m%s\033[0m %s\n' disable "--now ${args[*]}"
+          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}" # red
         }
 
       # journal
-      echo journal "${args[*]}"
-      echo follow "${args[*]}"
+      echo journal "${ARGS[*]}"
+      echo follow "${ARGS[*]}"
 
       # reload
       [[ $multi = true || $can_reload = yes ]] &&
-        printf '\033[0;37m%s\033[0m %s\n' reload "${args[*]}" # green
+        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}" # green
 
       # mask
       [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' mask "${args[*]}" # red
+        printf '\033[0;31m%s\033[0m %s\n' mask "${ARGS[*]}" # red
       [[ $multi = true || $unit_file_state = masked || $load_state = masked ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' unmask "${args[*]}" # green
+        printf '\033[0;32m%s\033[0m %s\n' unmask "${ARGS[*]}" # green
 
       # cat
-      echo cat "${args[*]}"
+      echo cat "${ARGS[*]}"
       # edit
-      echo edit "${args[*]}"
+      echo edit "${ARGS[*]}"
       # show
-      echo show "${args[*]}"
+      echo show "${ARGS[*]}"
     ) |
     readarray -t cmds || _sysz_quit $?
 fi
@@ -817,25 +815,24 @@ for pick in "${picks[@]}"; do
   for cmd in "${cmds[@]}"; do
     case ${cmd%% *} in
     journal)
-      _sysz_journalctl "$mgr" "$unit" -xe "${args[@]}"
+      _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
       _sysz_quit $?
       ;;
     follow)
-      _sysz_journalctl "$mgr" "$unit" -xef "${args[@]}"
+      _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
       _sysz_quit $?
       ;;
     status)
       # shellcheck disable=2086
-      SYSTEMD_COLORS=$SYSZ_COLOR _sysz_systemctl "$mgr" $cmd --no-pager "${args[@]}" -- "$unit"
+      SYSTEMD_COLORS=$SYSZ_COLOR _sysz_systemctl "$mgr" $cmd --no-pager "${ARGS[@]}" -- "$unit"
       _sysz_quit $?
       ;;
     cat | show)
-      _sysz_systemctl "$mgr" "$cmd" "${args[@]}" -- "$unit"
+      _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
       _sysz_quit $?
       ;;
     *)
-      # shellcheck disable=2086
-      _sysz_systemctl "$mgr" $cmd "${args[@]}" -- "$unit"
+      _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
       code=$?
       SYSTEMD_COLORS=$SYSZ_COLOR _sysz_systemctl "$mgr" status --no-pager -- "$unit"
       if [[ ${#picks[@]} -eq 1 ]]; then
