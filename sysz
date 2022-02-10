@@ -11,6 +11,7 @@ export SHELL=bash
 MIN_FZF_VERSION=0.27.1
 PROG=$(basename "$0")
 SYSZ_VERSION=1.4.3
+DEBUG_FILE=sysz.$(date -Iminutes).debug
 
 # colors
 RESET=$'\e[0m'
@@ -128,7 +129,7 @@ EOF
 
 _sysz_quit() {
   _sysz_debug "exit=$1"
-  [[ $DEBUG = true ]] && cat sysz.debug >&2
+  [[ $DEBUG = true ]] && cat "$DEBUG_FILE" >&2
   exit "$1"
 }
 
@@ -147,7 +148,7 @@ _sysz_error() {
 }
 
 _sysz_debug() {
-  [[ $DEBUG = true ]] && echo "$(date -Isec) '$*'" >>sysz.debug
+  [[ $DEBUG = true ]] && echo "$(date -Isec) '$*'" >>"$DEBUG_FILE"
 }
 
 _sysz_ctl() {
@@ -519,7 +520,7 @@ while [[ -n $1 ]]; do
   shift
 done
 
-_sysz_debug "CMD=CMD"
+_sysz_debug "CMD=$CMD"
 _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
@@ -659,7 +660,7 @@ _sysz_tmpl_prompt() {
   # Handle template units
   if [[ $unit = *@.* ]]; then
     read -r -p "$unit requires a parameter: " tmpl_param
-    _sysz_debug "tmpl_param=tmpl_param"
+    _sysz_debug "tmpl_param=$tmpl_param"
     if [[ -z $tmpl_param ]]; then
       _sysz_error "$unit requires a parameter"
     fi
