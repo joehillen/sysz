@@ -817,8 +817,13 @@ for pick in "${picks[@]}"; do
 
   unit=$(_sysz_tmpl_prompt "$unit")
 
+  _sysz_debug "cmds: ${cmds[*]}"
   for cmd in "${cmds[@]}"; do
-    case ${cmd%% *} in
+    _sysz_debug "cmd: $cmd"
+    cmd=${cmd%% *}
+    cmd=${cmd##* }
+    _sysz_debug "cmd: $cmd"
+    case $cmd in
     journal)
       _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
       _sysz_quit $?
