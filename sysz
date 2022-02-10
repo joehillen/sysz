@@ -156,10 +156,10 @@ _sysz_journalctl() {
 
 _sysz_mgr() {
   case ${1%% *} in
-  '[u]' | '[user]' | user | --user)
+  '[u'* | user* | --user*)
     echo --user
     ;;
-  '[s]' | '[system]' | system | --system)
+  '[s'* | system* | --system*)
     echo --system
     ;;
   *)
@@ -222,7 +222,7 @@ _sysz_ls() {
   esac
 
   for mgr in "${MANAGERS[@]}"; do
-    _sysz_ctl "--$mgr" \
+    _sysz_ctl "$(_sysz_mgr "$mgr")" \
       --legend=false \
       --full \
       --plain \
