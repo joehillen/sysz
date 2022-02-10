@@ -428,7 +428,12 @@ _sysz_fzf() {
     color_arg='--no-color'
     ;;
   esac
-  fzf ${color_arg} "$@"
+
+  fzf \
+    --bind "right:toggle-preview-wrap" \
+    --bind "left:toggle-preview-wrap" \
+    ${color_arg} \
+    "$@"
   return $?
 }
 
