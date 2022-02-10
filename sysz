@@ -27,6 +27,7 @@ SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 case "$SYSZ_COLOR" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
   SYSZ_COLOR=0
+  export SYSTEMD_COLORS=0
   ;;
 *)
   SYSZ_COLOR=1
@@ -169,7 +170,7 @@ _sysz_verbose() {
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo systemctl --wait "$@"
+    _sysz_verbose sudo SYSTEMD_COLORS="$SYSZ_COLOR" systemctl --wait "$@"
   else
     _sysz_verbose systemctl --wait "$@"
   fi
@@ -183,7 +184,7 @@ _sysz_journalctl() {
   else
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root
-      _sysz_verbose sudo journalctl --unit="$2" "${@:3}"
+      _sysz_verbose sudo SYSTEMD_COLORS="$SYSZ_COLOR" journalctl --unit="$2" "${@:3}"
     else
       _sysz_verbose journalctl --unit="$2" "${@:3}"
     fi
@@ -451,17 +452,17 @@ _sysz_fzf() {
   _sysz_debug "_sysz_fzf"
   case "$SYSZ_COLOR" in
   1)
-    color_arg=
+    color_arg=--ansi
     ;;
   0)
-    color_arg='--no-color'
+    color_arg=--no-color
     ;;
   esac
 
   fzf \
     --bind "right:toggle-preview-wrap" \
     --bind "left:toggle-preview-wrap" \
-    ${color_arg} \
+    "${color_arg}" \
     "$@"
   return $?
 }
@@ -714,7 +715,6 @@ while :; do
   _sysz_units |
     _sysz_fzf \
       --multi \
-      --ansi \
       --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
