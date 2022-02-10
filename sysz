@@ -715,6 +715,7 @@ while :; do
   _sysz_units |
     _sysz_fzf \
       --multi \
+      --tiebreak=begin,end,index \
       --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
