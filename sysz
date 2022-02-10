@@ -19,6 +19,7 @@ GREEN=$'\e[32m'
 YELLOW=$'\e[33m'
 BLUE=$'\e[34m'
 CYAN=$'\e[36m'
+GRAY=$'\e[37m'
 
 # environment variables
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
@@ -666,6 +667,27 @@ _sysz_tmpl_prompt() {
   echo "$unit"
 }
 
+_sysz_cmd() {
+  local color
+  local reset
+  local code
+  reset=$RESET
+  color=$1
+  shift
+  if [[ $SYSZ_COLOR != 1 ]]; then
+    color=
+    reset=
+  fi
+  cmd=$1
+  shift
+
+  if [[ ${#ARGS[@]} -gt 0 ]]; then
+    echo "$color$cmd$reset ${ARGS[*]}"
+  else
+    echo "$color$cmd$reset"
+  fi
+}
+
 declare key
 declare multi
 declare -a picks
@@ -737,6 +759,7 @@ if [[ -n $CMD ]]; then
   cmds=("$CMD")
 else
 
+  multi=
   if [[ ${#picks[@]} -gt 1 ]]; then
     printf -v preview '%s\n' "${picks[*]}"
     _sysz_debug "preview: $preview"
@@ -763,6 +786,7 @@ else
   fi
 
   _sysz_debug "multi: $multi"
+
   # prompt commands
   _sysz_fzf \
     --multi \
@@ -773,47 +797,40 @@ else
     --preview="$preview_cmd" \
     --preview-window=80% < <(
       # status
-      echo status "${ARGS[*]}"
+      _sysz_cmd "$RESET" status
       # restart
       [[ $multi = true || $active_state = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' restart "${ARGS[*]}" # red
+        _sysz_cmd "$RED" restart
       # start
       [[ $multi = true || $active_state != active ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' start "${ARGS[*]}" # green
+        _sysz_cmd "$GREEN" start
       # stop
       [[ $multi = true || $active_state = active ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' stop "${ARGS[*]}" # red
+        _sysz_cmd "$RED" stop
       # enable
       [[ $multi = true || $unit_file_state != enabled ]] &&
-        {
-          printf '\033[0;32m%s\033[0m %s\n' "enable" "${ARGS[*]}" # green
-        }
+        _sysz_cmd "$GREEN" enable
       # disable
       [[ $multi = true || $unit_file_state = enabled ]] &&
-        {
-          printf '\033[0;31m%s\033[0m %s\n' disable "${ARGS[*]}" # red
-        }
+        _sysz_cmd "$RED" disable
 
       # journal
-      echo journal "${ARGS[*]}"
-      echo follow "${ARGS[*]}"
+      _sysz_cmd "$RESET" journal
+      _sysz_cmd "$RESET" follow
 
       # reload
       [[ $multi = true || $can_reload = yes ]] &&
-        printf '\033[0;37m%s\033[0m %s\n' reload "${ARGS[*]}" # green
+        _sysz_cmd "$GRAY" reload
 
       # mask
       [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
-        printf '\033[0;31m%s\033[0m %s\n' mask "${ARGS[*]}" # red
+        _sysz_cmd "$RED" mask
       [[ $multi = true || $unit_file_state = masked || $load_state = masked ]] &&
-        printf '\033[0;32m%s\033[0m %s\n' unmask "${ARGS[*]}" # green
+        _sysz_cmd "$GREEN" unmask
 
-      # cat
-      echo cat "${ARGS[*]}"
-      # edit
-      echo edit "${ARGS[*]}"
-      # show
-      echo show "${ARGS[*]}"
+      _sysz_cmd "$RESET" cat
+      _sysz_cmd "$RESET" edit
+      _sysz_cmd "$RESET" show
     ) |
     readarray -t cmds || _sysz_quit $?
 fi
