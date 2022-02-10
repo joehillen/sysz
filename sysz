@@ -422,13 +422,13 @@ _sysz_fzf() {
   local color_arg
   case "$SYSZ_COLOR" in
   1)
-    color_arg=''
+    color_arg=
     ;;
   0)
     color_arg='--no-color'
     ;;
   esac
-  fzf "$color_arg" "$@"
+  fzf ${color_arg} "$@"
   return $?
 }
 
