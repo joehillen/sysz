@@ -128,7 +128,7 @@ EOF
 }
 
 _sysz_quit() {
-  _sysz_debug "exit=$1"
+  _sysz_debug "quit=$1"
   [[ $DEBUG = true ]] && cat "$DEBUG_FILE" >&2
   exit "$1"
 }
@@ -154,6 +154,7 @@ _sysz_debug() {
 _sysz_ctl() {
   _sysz_debug "> systemctl $*"
   systemctl "$@"
+  return $?
 }
 
 _sysz_verbose() {
@@ -162,6 +163,7 @@ _sysz_verbose() {
   SYSTEMD_COLORS=$SYSZ_COLOR "$@"
   code=$?
   [[ $VERBOSE = true && $code != 0 ]] && red "ERROR: Failed: $*" >&2
+  return $code
 }
 
 _sysz_systemctl() {
@@ -171,6 +173,7 @@ _sysz_systemctl() {
   else
     _sysz_verbose systemctl --wait "$@"
   fi
+  return $?
 }
 
 _sysz_journalctl() {
@@ -185,7 +188,7 @@ _sysz_journalctl() {
       _sysz_verbose journalctl --unit="$2" "${@:3}"
     fi
   fi
-
+  return $?
 }
 
 _sysz_mgr() {
@@ -282,6 +285,9 @@ _sysz_ls() {
 }
 
 _sysz_units() {
+  _sysz_debug "_sysz_units"
+  _sysz_debug "STATES=${STATES[*]}"
+  _sysz_debug "TYPES=${TYPES[*]}"
   if [[ ${#STATES[@]} -gt 0 && ${#TYPES[@]} -gt 0 ]]; then
     for cmd in list-units list-unit-files; do
       for state in "${STATES[@]}"; do
@@ -424,6 +430,7 @@ _sysz_debug "SYSZ_COLOR=$SYSZ_COLOR"
 
 _sysz_check_states() {
   for state in "${STATES[@]}"; do
+    _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
       _sysz_error "Invalid state: $state"
     fi
@@ -432,6 +439,7 @@ _sysz_check_states() {
 
 _sysz_check_types() {
   for unit_type in "${TYPES[@]}"; do
+    _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
     fi
@@ -440,6 +448,7 @@ _sysz_check_types() {
 
 _sysz_fzf() {
   local color_arg
+  _sysz_debug "_sysz_fzf"
   case "$SYSZ_COLOR" in
   1)
     color_arg=
@@ -550,7 +559,7 @@ _sysz_mgr_prompt() {
       --prompt="Manager: " |
     readarray -t MANAGERS || _sysz_quit $?
 
-  _sysz_debug "Managers=${MANAGERS[*]}"
+  _sysz_debug "MANAGERS=${MANAGERS[*]}"
 }
 
 _sysz_daemon_reload_prompt() {
@@ -570,7 +579,7 @@ _sysz_daemon_reload_prompt() {
   _sysz_debug "daemon-reload=${managers[*]}"
 
   for mgr in "${managers[@]}"; do
-    _sysz_systemctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || error "daemon-reload failed"
+    _sysz_systemctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || _sysz_error "daemon-reload failed"
   done
 }
 
@@ -714,7 +723,7 @@ while :; do
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=down |
-    readarray -t results || _sysz_quit $?
+    readarray -t results
   _sysz_debug "results=${results[*]}"
 
   # The first result from fzf is always the key
@@ -781,6 +790,7 @@ else
     _sysz_debug "active_state=$active_state"
     load_state=$(_sysz_show "$pick" LoadState)
     _sysz_debug "load_state=$load_state"
+    [[ $load_state = not-found ]] && _sysz_error "$pick not found"
     unit_file_state=$(_sysz_show "$pick" UnitFileState)
     _sysz_debug "unit_file_state=$unit_file_state"
     can_reload=$(_sysz_show "$pick" CanReload)
