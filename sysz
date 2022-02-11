@@ -27,12 +27,19 @@ SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
 case "$SYSZ_COLOR" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
   SYSZ_COLOR=0
-  export SYSTEMD_COLORS=0
   ;;
 *)
-  SYSZ_COLOR=1
+  ncolors=$(tput colors)
+
+  if [[ -n $ncolors && $ncolors -ge 8 ]]; then
+    SYSZ_COLOR=1
+  else
+    SYSZ_COLOR=0
+  fi
   ;;
 esac
+
+export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLOR}
 
 # global variables
 declare VERBOSE
@@ -161,7 +168,7 @@ _sysz_ctl() {
 _sysz_verbose() {
   [[ $VERBOSE = true ]] && echo '>' "$@" >&2
   _sysz_debug "> $*"
-  SYSTEMD_COLORS=$SYSZ_COLOR "$@"
+  "$@"
   code=$?
   [[ $VERBOSE = true && $code != 0 ]] && red "ERROR: Failed: $*" >&2
   return $code
@@ -170,7 +177,7 @@ _sysz_verbose() {
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo SYSTEMD_COLORS="$SYSZ_COLOR" systemctl --wait "$@"
+    _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl --wait "$@"
   else
     _sysz_verbose systemctl --wait "$@"
   fi
@@ -184,7 +191,7 @@ _sysz_journalctl() {
   else
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root
-      _sysz_verbose sudo SYSTEMD_COLORS="$SYSZ_COLOR" journalctl --unit="$2" "${@:3}"
+      _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" journalctl --unit="$2" "${@:3}"
     else
       _sysz_verbose journalctl --unit="$2" "${@:3}"
     fi
@@ -207,7 +214,7 @@ _sysz_mgr() {
 }
 
 _fzf_cat() {
-  SYSTEMD_COLORS=$SYSZ_COLOR _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
+  _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
 _fzf_preview() {
@@ -221,7 +228,7 @@ _fzf_preview() {
   if [[ $unit = *@.* ]]; then
     _fzf_cat "${args[@]}"
   else
-    SYSTEMD_COLORS=$SYSZ_COLOR _sysz_ctl "$mgr" status --no-pager -- "$unit"
+    _sysz_ctl "$mgr" status --no-pager -- "$unit"
   fi
 }
 
