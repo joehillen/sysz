@@ -1,14 +1,14 @@
 # [sysz](https://github.com/joehillen/sysz)
 
-A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl
+A [fzf](https://github.com/junegunn/fzf) terminal UI for systemctl.
 
 <a href="https://console.dev" title="Visit Console - the best tools for developers"><img src="https://console.dev/img/badges/1.0/svg/console-badge-logo-dark.svg" alt="Console - Developer Tool of the Week" /></a>
 
-# Demo
+## Demo
 
 [![asciicast](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa.svg)](https://asciinema.org/a/BLsJz73uF7DdQj7FVGqLPhqCa)
 
-# Features
+## Features
 
 VERSION: 1.4.3
 
@@ -24,57 +24,10 @@ VERSION: 1.4.3
 - Only prompts commands based on current state
   (e.g. show "start" only if the unit is inactive).
 
-# Requirements
-
-- [fzf](https://github.com/junegunn/fzf) >= [0.27.1](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0244)
-- bash > 4.3 (released 2009)
-- awk
-
-# Installation
-
-## Arch Linux
-
-```
-paru -S sysz
-```
-
-## NixOS
-
-```
-nix-env -iA nixos.sysz
-```
-
-## Using Nix
-
-```
-nix-env -iA nixpkgs.sysz
-```
-
-## Using [`bin`](https://github.com/marcosnils/bin)
-
-```
-bin install https://github.com/joehillen/sysz
-```
-
-## Direct Download
-
-```sh
-wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
-chmod +x ~/.bin/sysz
-```
-
-## From Source
-
-```sh
-git clone https://github.com/joehillen/sysz.git
-cd sysz
-sudo make install # /usr/local/bin/sysz
-```
-
-# Usage
+## Usage
 
 ```text
-A utility for using systemctl interactively via fzf.
+syz - systemctl interactive fuzzy matching terminal UI using fzf.
 
 Usage: sysz [OPTS...] [CMD] [-- ARGS...]
 
@@ -84,14 +37,17 @@ If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
 
 OPTS:
-  -u, --user               Only show --user units
-  --sys, --system          Only show --system units
-  -s STATE, --state STATE  Only show units in STATE (repeatable)
-  -t TYPE, --type TYPE     Only show units of TYPE (repeatable)
-  --no-color               Disable colors
-  -V, --verbose            Print the systemctl command
-  -v, --version            Print the version
-  -h, --help               Print this message
+
+  If no options are given, both system and user units are shown.
+
+  -u, --user                    Only show --user units
+  -t TYPE, --type TYPE          Only show units of TYPE (repeatable)
+  --sys, --system               Only show --system units
+  -s STATE, --state STATE       Only show units in STATE (repeatable)
+  -v, --version                 Print the version
+  -h, --help                    Print this message
+  --no-color                    Disable colors
+  -V, --verbose                 Print the systemctl command
 
   If no options are given, both system and user units are shown.
 
@@ -111,19 +67,21 @@ CMD:
 ARGS are passed to the systemctl command for each selected unit.
 
 Keybindings:
+  Keyboard Bindings:
   TAB           Toggle selection.
   ctrl-r        Run daemon-reload. Selection is reset.
-  ctrl-x        Switch between user or system managers. Selection is reset.
-  ctrl-s        Select states to match. Selection is reset.
-  ctrl-t        Select types to match. Selection is reset.
-  ctrl-v        'cat' the unit in the preview window.
+  ctrl-x        Switch between the user or system manager. Selection is reset.
+  ctrl-s        Filter by states. Selection is reset.
+  ctrl-t        Filter by types. Selection is reset.
+  ctrl-v        'cat' the selected units in the preview window.
   ctrl-p        History previous.
   ctrl-n        History next.
+  left/right    Toggle word-wrapping in the preview window.
+                (fzf does not support horizontal scrolling)
   ?             Show keybindings.
 
 Environment Variables:
-  SYSZ_HISTORY           Command history (default: $XDG_CACHE_HOME/sysz/history)
-  SYSZ_COLORS            Use colors (default: on)
+  
 
 Some units are colored based on state:
   green       active
@@ -133,13 +91,13 @@ Some units are colored based on state:
   other       cyan
 
 Examples:
-  sysz -u                        User units
-  sysz --sys -s active           Active system units
-  sysz --user --state failed     Failed user units
-  sysz --type socket             Sockets
-  sysz -s inactive -t service    Inactive services
+  sysz -u                             User units
+  sysz --sys -s active                Active system units
+  sysz --user --state failed          Failed user units
+  sysz --type socket                  Sockets
+  sysz --state=inactive -t service    Inactive services
 
-Examples with commands:
+Examples With Commands:
   sysz start                     Start a unit
   sysz --sys s                   Get the status of system units
   sysz --user edit               Edit user units
@@ -148,8 +106,67 @@ Examples with commands:
   sysz -u --state failed r       Restart failed user units
 ```
 
-# Acknowledgements
+## Requirements
 
-Inspired by [fuzzy-sys](https://github.com/NullSense/fuzzy-sys) by [NullSense](https://github.com/NullSense/)
+- [fzf](https://github.com/junegunn/fzf) >=
+  [0.27.1](https://github.com/junegunn/fzf/blob/master/CHANGELOG.md#0244)
+- bash > 4.3 (released 2009)
 
-Thank you for [ShellCheck](https://github.com/koalaman/shellcheck) without which this would be a buggy mess.
+## Installation
+
+### Arch Linux
+
+With [paru](https://github.com/Morganamilo/paru):
+
+```sh
+paru -S sysz
+```
+
+Manually:
+
+```sh
+git clone https://aur.archlinux.org/sysz.git
+cd sysz
+makepkg -sri
+```
+
+### NixOS
+
+```sh
+nix-env -iA nixos.sysz
+```
+
+### Using Nix
+
+```sh
+nix-env -iA nixpkgs.sysz
+```
+
+### Using [`bin`](https://github.com/marcosnils/bin)
+
+```sh
+bin install https://github.com/joehillen/sysz
+```
+
+### From Source
+
+```sh
+git clone https://github.com/joehillen/sysz.git
+cd sysz
+sudo make install # /usr/local/bin/sysz
+```
+
+### Direct Download
+
+```sh
+wget -O ~/.bin/sysz https://github.com/joehillen/sysz/releases/latest/download/sysz
+chmod +x ~/.bin/sysz
+```
+
+## Acknowledgements
+
+Inspired by [fuzzy-sys](https://github.com/NullSense/fuzzy-sys) by
+[NullSense](https://github.com/NullSense/)
+
+Thank you for [ShellCheck](https://github.com/koalaman/shellcheck) without which
+this would be a buggy mess.

@@ -10,7 +10,7 @@ shopt -s extglob
 export SHELL=bash
 MIN_FZF_VERSION=0.27.1
 PROG=$(basename "$0")
-SYSZ_VERSION=1.4.3
+SYSZ_VERSION=2.0.0-beta
 DEBUG_FILE=sysz.$(date -Iminutes).debug
 
 # colors
@@ -50,90 +50,158 @@ declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
 
-_sysz_keys() {
-  cat <<EOF
-Keybindings:
-  TAB           Toggle selection.
-  ctrl-r        Run daemon-reload. Selection is reset.
-  ctrl-x        Switch between user or system managers. Selection is reset.
-  ctrl-s        Select states to match. Selection is reset.
-  ctrl-t        Select types to match. Selection is reset.
-  ctrl-v        'cat' the unit in the preview window.
-  ctrl-p        History previous.
-  ctrl-n        History next.
-  ?             Show keybindings.
-EOF
-}
-
 _sysz_help() {
-  cat >&2 <<EOF
-A utility for using systemctl interactively via fzf.
+  local title
+  local usage
+  local description
+  local commands
+  local opts
+  declare -A opts
+  local opts_help
+  local opts_man
+  local envvars
+  declare -A envvars
+  local args
+  local keys
+  declare -A keys
+  local help
 
-Usage: $PROG [OPTS...] [CMD] [-- ARGS...]
+  title="syz - systemctl interactive fuzzy matching terminal UI using fzf."
 
+  usage="$PROG [OPTS...] [CMD] [-- ARGS...]"
+
+  read -r -d '' description <<EOM
 sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
+EOM
 
-OPTS:
-  -u, --user               Only show --user units
-  --sys, --system          Only show --system units
-  -s STATE, --state STATE  Only show units in STATE (repeatable)
-  -t TYPE, --type TYPE     Only show units of TYPE (repeatable)
-  --no-color               Disable colors
-  -V, --verbose            Print the systemctl command
-  -v, --version            Print the version
-  -h, --help               Print this message
+  opts=(
+    ["-u, --user"]="Only show --user units"
+    ["--sys, --system"]="Only show --system units"
+    ["-s STATE, --state STATE"]="Only show units in STATE (repeatable)"
+    ["-t TYPE, --type TYPE"]="Only show units of TYPE (repeatable)"
+    ["--no-color"]="Disable colors"
+    ["-V, --verbose"]="Print the systemctl command"
+    ["-v, --version"]="Print the version"
+    ["-h, --help"]="Print this message"
+  )
 
-  If no options are given, both system and user units are shown.
+  no_opts=$(echo -e "If no options are given, both system and user units are shown.\n")$'\n\n'
+  opts_help=$no_opts
+  opts_man=$no_opts
+  for flags in "${!opts[@]}"; do
+    desc=${opts[$flags]}
+    # (2 spaces)(flags)(padding)(desc) < 70
+    opts_help+=$(printf "  %-30s%s" "$flags" "$desc")$'\n'
+    opts_man+=$'\n'${flags}$'\n'
+    opts_man+=$'\n'": ${desc}"$'\n'
+  done
 
-CMD:
-  start                  systemctl start <unit>
-  stop                   systemctl stop <unit>
-  r, restart             systemctl restart <unit>
-  s, stat, status        systemctl status <unit>
-  ed, edit               systemctl edit <unit>
-  reload                 systemctl reload <unit>
-  en, enable             systemctl enable <unit>
-  d, dis, disable        systemctl disable <unit>
-  c, cat                 systemctl cat <unit>
+  args='ARGS are passed to the systemctl command for each selected unit.'
 
-  If no command is given, one or more can be chosen interactively.
+  keys=(
+    ["TAB"]="Toggle selection."
+    ["ctrl-r"]="Run daemon-reload. Selection is reset."
+    ["ctrl-x"]="Switch between user and system managers. Selection is reset."
+    ["ctrl-s"]="Filter by states. Selection is reset."
+    ["ctrl-t"]="Filter by types. Selection is reset."
+    ["ctrl-v"]="'cat' the selected units in the preview window."
+    ["ctrl-p"]="History previous."
+    ["ctrl-n"]="History next."
+    ["left/right"]="Toggle word-wrapping in the preview window. (fzf does not support horizontal scrolling)"
+    ["?"]="Show keybindings."
+  )
 
-ARGS are passed to the systemctl command for each selected unit.
+  keys_help=
+  keys_man=
+  for key in "${!keys[@]}"; do
+    desc=${keys[$key]}
+    # (2 spaces)(flags)(padding)(desc) < 70
+    keys_help+=$(printf "  %-15s%s" "$key" "$desc")$'\n'
+    keys_man+=$'\n'${key}$'\n'
+    opts_man+=$'\n'": ${desc}"$'\n'
+  done
 
-$(_sysz_keys)
+  envvars=(
+    ["SYSZ_HISTORY"]="Command history (default: $XDG_CACHE_HOME/sysz/history)"
+    ["SYSZ_COLORS"]="Use colors (default: on)"
+  )
 
-Environment Variables:
-  SYSZ_HISTORY           Command history (default: $SYSZ_HISTORY)
-  SYSZ_COLORS            Use colors (default: on)
-
-Some units are colored based on state:
+  read -r -d '' colors <<EOM
   green       active
   red         failed
   yellow      not-found
   template    blue
   other       cyan
+EOM
 
-Examples:
-  $PROG -u                        User units
-  $PROG --sys -s active           Active system units
-  $PROG --user --state failed     Failed user units
-  $PROG --type socket             Sockets
-  $PROG -s inactive -t service    Inactive services
+  read -r -d '' examples <<EOM
+  $PROG -u                             User units
+  $PROG --sys -s active                Active system units
+  $PROG --user --state failed          Failed user units
+  $PROG --type socket                  Sockets
+  $PROG --state=inactive -t service    Inactive services
+EOM
 
-Examples with commands:
+  read -r -d '' example_cmds <<EOM
   $PROG start                     Start a unit
   $PROG --sys s                   Get the status of system units
   $PROG --user edit               Edit user units
   $PROG s -- -n100                Show status with 100 log lines
   $PROG --sys -s active stop      Stop an active system unit
   $PROG -u --state failed r       Restart failed user units
-EOF
+EOM
 
-  exit 0
+  read -r -d '' help <<EOM
+${title}
+
+Usage: ${usage}
+
+${description}
+
+OPTS:
+
+  ${opts_help}
+
+CMD:
+
+  ${commands}
+
+${args}
+
+Keybindings:
+
+${keys_help}
+
+Environment Variables:
+  ${envvars_help}
+
+Some units are colored based on state:
+  ${colors}
+
+Examples:
+  ${examples}
+
+Examples With Commands:
+  ${example_cmds}
+EOM
+
+  if [[ -z "$1" ]]; then
+    echo "$help"
+  else
+    echo "${!1}"
+  fi
 }
+
+read -r -d '' _fzf_help <<EOM
+Keybindings:
+$(_sysz_help keys_help)
+
+FZF Query Syntax:
+  TODO
+EOM
 
 _sysz_quit() {
   _sysz_debug "quit=$1"
@@ -422,7 +490,9 @@ while [[ -n $1 ]]; do
     shift
     ;;
   -h | --help)
-    _sysz_help
+    shift
+    _sysz_help "$@"
+    exit 0
     ;;
   *)
     break
@@ -494,7 +564,9 @@ while [[ -n $1 ]]; do
     exit 0
     ;;
   h | help)
-    _sysz_help
+    shift
+    _sysz_help "$@"
+    exit 0
     ;;
   # Handle short names
   re)
@@ -527,7 +599,13 @@ while [[ -n $1 ]]; do
     break
     ;;
   -*)
-    _sysz_error "Unknown option: $1"
+    red "ERROR: Unknown option: $1" >&2
+    echo -n "Usage: " >&2
+    _sysz_help usage >&2
+    echo >&2
+    echo -en "Options:\n  " >&2
+    _sysz_help opts >&2
+    exit 1
     ;;
   *)
     # assume the next argument is a command name
@@ -728,7 +806,7 @@ while :; do
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
       --header '? for keybindings' \
-      --bind "?:preview(echo '$(_sysz_keys)')" \
+      --bind "?:preview(echo '$_fzf_help')" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
       --preview-window=down |
