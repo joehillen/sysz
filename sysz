@@ -12,6 +12,7 @@ MIN_FZF_VERSION=0.27.1
 PROG=$(basename "$0")
 SYSZ_VERSION=2.0.0-beta
 DEBUG_FILE=sysz.$(date -Iminutes).debug
+EXITCODE=0
 
 # colors
 RESET=$'\e[0m'
@@ -23,7 +24,7 @@ CYAN=$'\e[36m'
 GRAY=$'\e[37m'
 
 # environment variables
-SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-~/.cache}/sysz/history}
+SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-$HOME/.cache}/sysz/history}
 case "$SYSZ_COLOR" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
   SYSZ_COLOR=0
@@ -50,166 +51,181 @@ declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
 
-_sysz_help() {
-  local title
-  local usage
-  local description
-  local commands
-  local opts
-  declare -A opts
-  local opts_help
-  local opts_man
-  local envvars
-  declare -A envvars
-  local args
-  local keys
-  declare -A keys
-  local help
+# ordered assocative array helpers
+# https://stackoverflow.com/a/72263994/334632
+__add() {
+  local var=$1
+  local key=$2
+  local val=$3
+  declare -ga "${var}_ORDER"
+  declare -gA "${var}_MAP"
+  local -n map=${var}_MAP
+  local -n order=${var}_ORDER
+  order+=("$key")
+  map["$key"]=$val
+}
 
-  title="syz - systemctl interactive fuzzy matching terminal UI using fzf."
+__get() {
+  local var=$1
+  local key=$2
+  local -n tmp=${var}_MAP
+  echo "${tmp[$key]}"
+}
 
-  usage="$PROG [OPTS...] [CMD] [-- ARGS...]"
+__keys() {
+  local var=$1
+  local -n tmp=${var}_ORDER
+  for x in "${tmp[@]}"; do
+    echo "$x"
+  done
+}
 
-  read -r -d '' description <<EOM
+__values() {
+  local var=$1
+  # shellcheck disable=SC2178
+  local -n map=${var}_MAP
+  # shellcheck disable=SC2178
+  local -n order=${var}_ORDER
+  for k in "${order[@]}"; do
+    echo -n "${map[$k]} "
+  done
+  echo
+}
+
+# help
+readonly _sysz_title="sysz - interactive terminal UI for systemctl"
+readonly _sysz_usage="$PROG [OPTS...] [CMD] [-- ARGS...]"
+
+read -r -d '' _sysz_description <<EOM
 sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
 EOM
+readonly _sysz_description
 
-  opts=(
-    ["-u, --user"]="Only show --user units"
-    ["--sys, --system"]="Only show --system units"
-    ["-s STATE, --state STATE"]="Only show units in STATE (repeatable)"
-    ["-t TYPE, --type TYPE"]="Only show units of TYPE (repeatable)"
-    ["--no-color"]="Disable colors"
-    ["-V, --verbose"]="Print the systemctl command"
-    ["-v, --version"]="Print the version"
-    ["-h, --help"]="Print this message"
-  )
+__add _sysz_opts "-u, --user" "Only show --user units [default]."
+__add _sysz_opts "--sys, --system" "Only show --system units [default]."
+__add _sysz_opts "-s STATE, --state STATE" "Only show units in STATE (repeatable)."
+__add _sysz_opts "-t TYPE, --type TYPE" "Only show units of TYPE (repeatable)."
+__add _sysz_opts "--no-color" "Disable colors."
+__add _sysz_opts "-V, --verbose" "Print the systemctl command."
+__add _sysz_opts "-v, --version" "Print the version."
+__add _sysz_opts "-h, --help" "Print this message."
 
-  no_opts=$(echo -e "If no options are given, both system and user units are shown.\n")$'\n\n'
-  opts_help=$no_opts
-  opts_man=$no_opts
-  for flags in "${!opts[@]}"; do
-    desc=${opts[$flags]}
-    # (2 spaces)(flags)(padding)(desc) < 70
-    opts_help+=$(printf "  %-30s%s" "$flags" "$desc")$'\n'
-    opts_man+=$'\n'${flags}$'\n'
-    opts_man+=$'\n'": ${desc}"$'\n'
+__add _sysz_keys "TAB" "Toggle selection."
+__add _sysz_keys "ctrl-r" "Run daemon-reload. Selection is reset."
+__add _sysz_keys "ctrl-x" "Switch between user and system managers. Selection is reset."
+__add _sysz_keys "ctrl-s" "Filter by states. Selection is reset."
+__add _sysz_keys "ctrl-t" "Filter by types. Selection is reset."
+__add _sysz_keys "ctrl-v" "'cat' the selected units in the preview window."
+__add _sysz_keys "ctrl-p" "History previous."
+__add _sysz_keys "ctrl-n" "History next."
+__add _sysz_keys "left|right" "Toggle word-wrapping in the preview window."
+__add _sysz_keys "shift-up" "Scroll up in the preview window."
+__add _sysz_keys "shift-down" "Scroll down in the preview window."
+__add _sysz_keys "?" "Show keybindings."
+
+__add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
+__add _sysz_envvars "SYSZ_COLOR" 'Turn colors on or off [default: on].'
+
+__max_len() {
+  local max=0
+  while read -r -d' ' str; do
+    if [[ $max -lt ${#str} ]]; then
+      max=${#str}
+    fi
+  done
+  echo "$max"
+}
+
+__print_table() {
+  # shellcheck disable=SC2178
+  local -n map="$1_MAP"
+  local -n keys="$1_ORDER"
+  local max=0
+
+  for key in "${keys[@]}"; do
+    if [[ $max -lt ${#key} ]]; then
+      max=${#key}
+    fi
   done
 
-  args='ARGS are passed to the systemctl command for each selected unit.'
+  max=$((max + 5))
 
-  keys=(
-    ["TAB"]="Toggle selection."
-    ["ctrl-r"]="Run daemon-reload. Selection is reset."
-    ["ctrl-x"]="Switch between user and system managers. Selection is reset."
-    ["ctrl-s"]="Filter by states. Selection is reset."
-    ["ctrl-t"]="Filter by types. Selection is reset."
-    ["ctrl-v"]="'cat' the selected units in the preview window."
-    ["ctrl-p"]="History previous."
-    ["ctrl-n"]="History next."
-    ["left/right"]="Toggle word-wrapping in the preview window. (fzf does not support horizontal scrolling)"
-    ["?"]="Show keybindings."
-  )
-
-  keys_help=
-  keys_man=
-  for key in "${!keys[@]}"; do
-    desc=${keys[$key]}
-    # (2 spaces)(flags)(padding)(desc) < 70
-    keys_help+=$(printf "  %-15s%s" "$key" "$desc")$'\n'
-    keys_man+=$'\n'${key}$'\n'
-    opts_man+=$'\n'": ${desc}"$'\n'
+  for key in "${keys[@]}"; do
+    key_len=${#key}
+    printf "%s%*s%s\n" "$key" $((max - key_len)) ' ' "${map[$key]}"
+    [[ $key = "left|right" ]] && {
+      printf "%*s%s\n" "$max" ' ' "Note: fzf does not support horizontal scrolling."
+    }
   done
+}
 
-  envvars=(
-    ["SYSZ_HISTORY"]="Command history (default: $XDG_CACHE_HOME/sysz/history)"
-    ["SYSZ_COLORS"]="Use colors (default: on)"
-  )
+_sysz_help() {
+  # dynamically generate help message
+  cat <<EOF
+${_sysz_title}
 
-  read -r -d '' colors <<EOM
+${_sysz_usage}
+
+${_sysz_description}
+
+OPTS:
+$(__print_table _sysz_opts | sed 's/^/  /')
+
+ARGS are passed to the systemctl command for each selected unit.
+
+Keybindings:
+$(__print_table _sysz_keys | sed 's/^/  /')
+
+Environment Variables:
+$(__print_table _sysz_envvars | sed 's/^/  /' | sed "s|\$XDG_CACHE_HOME|$XDG_CACHE_HOME|")
+
+Units are colored based on their state:
   green       active
   red         failed
   yellow      not-found
   template    blue
   other       cyan
-EOM
-
-  read -r -d '' examples <<EOM
-  $PROG -u                             User units
-  $PROG --sys -s active                Active system units
-  $PROG --user --state failed          Failed user units
-  $PROG --type socket                  Sockets
-  $PROG --state=inactive -t service    Inactive services
-EOM
-
-  read -r -d '' example_cmds <<EOM
-  $PROG start                     Start a unit
-  $PROG --sys s                   Get the status of system units
-  $PROG --user edit               Edit user units
-  $PROG s -- -n100                Show status with 100 log lines
-  $PROG --sys -s active stop      Stop an active system unit
-  $PROG -u --state failed r       Restart failed user units
-EOM
-
-  read -r -d '' help <<EOM
-${title}
-
-Usage: ${usage}
-
-${description}
-
-OPTS:
-
-  ${opts_help}
-
-CMD:
-
-  ${commands}
-
-${args}
-
-Keybindings:
-
-${keys_help}
-
-Environment Variables:
-  ${envvars_help}
-
-Some units are colored based on state:
-  ${colors}
 
 Examples:
-  ${examples}
+  $PROG -u                             User units.
+  $PROG --sys -s active                Active system units.
+  $PROG --user --state failed          Failed user units.
+  $PROG --type socket                  Sockets.
+  $PROG --state=inactive -t service    Inactive services.
+EOF
 
-Examples With Commands:
-  ${example_cmds}
-EOM
-
-  if [[ -z "$1" ]]; then
-    echo "$help"
-  else
-    echo "${!1}"
-  fi
 }
 
+# dynamically generate sysz help window
 read -r -d '' _fzf_help <<EOM
 Keybindings:
-$(_sysz_help keys_help)
+$(__print_table _sysz_keys)
+
+$([[ $SYSZ_COLOR = 1 ]] && {
+  echo "States:"
+  echo "  ${GREEN}active${RESET}"
+  echo "  ${RED}failed${RESET}"
+  echo "  ${YELLOW}not-found${RESET}"
+  echo "  ${BLUE}template${RESET}"
+  echo "  ${CYAN}other${RESET}"
+})
 
 FZF Query Syntax:
   TODO
 EOM
 
 _sysz_quit() {
-  _sysz_debug "quit=$1"
+  local code
+  code=${1:-$EXITCODE}
+  _sysz_debug "quit=$code"
   [[ $DEBUG = true ]] && cat "$DEBUG_FILE" >&2
-  exit "$1"
+  exit "$code"
 }
 
-red() {
+__red() {
   if [[ $SYSZ_COLOR = 1 ]]; then
     echo -e "$RED$*$RESET"
   else
@@ -219,7 +235,7 @@ red() {
 
 _sysz_error() {
   _sysz_debug "ERROR: $*"
-  red "ERROR: $*" >&2
+  __red "ERROR: $*" >&2
   _sysz_quit 1
 }
 
@@ -238,16 +254,16 @@ _sysz_verbose() {
   _sysz_debug "> $*"
   "$@"
   code=$?
-  [[ $VERBOSE = true && $code != 0 ]] && red "ERROR: Failed: $*" >&2
+  [[ $VERBOSE = true && $code != 0 ]] && __red "ERROR: Failed: $*" >&2
   return $code
 }
 
 _sysz_systemctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl --wait "$@"
+    _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl --wait "$@" || EXITCODE=$?
   else
-    _sysz_verbose systemctl --wait "$@"
+    _sysz_verbose systemctl --wait "$@" || EXITCODE=$?
   fi
   return $?
 }
@@ -255,13 +271,13 @@ _sysz_systemctl() {
 _sysz_journalctl() {
   if [[ $1 = --user ]]; then
     # use --user-unit flag if it's a user unit
-    _sysz_verbose journalctl --user-unit="$2" "${@:3}"
+    _sysz_verbose journalctl --user-unit="$2" "${@:3}" || EXITCODE=$?
   else
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root
-      _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" journalctl --unit="$2" "${@:3}"
+      _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" journalctl --unit="$2" "${@:3}" || EXITCODE=$?
     else
-      _sysz_verbose journalctl --unit="$2" "${@:3}"
+      _sysz_verbose journalctl --unit="$2" "${@:3}" || EXITCODE=$?
     fi
   fi
   return $?
@@ -409,10 +425,8 @@ _sysz_units() {
     # remaining
     # templates
     for state in failed active; do
-      # show all failed and active services and timers first
       _sysz_ls list-units "--state=$state" --type=service
       _sysz_ls list-units "--state=$state" --type=timer
-      # show remaining failed and active units
       _sysz_ls list-units "--state=$state" |
         grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
     done
@@ -599,7 +613,7 @@ while [[ -n $1 ]]; do
     break
     ;;
   -*)
-    red "ERROR: Unknown option: $1" >&2
+    __red "ERROR: Unknown option: $1" >&2
     echo -n "Usage: " >&2
     _sysz_help usage >&2
     echo >&2
@@ -897,8 +911,6 @@ else
     --prompt="Commands: " \
     --preview="$preview_cmd" \
     --preview-window=80% < <(
-      # status
-      _sysz_cmd "$RESET" status
       # restart
       [[ $multi = true || $active_state = active ]] &&
         _sysz_cmd "$RED" restart
@@ -915,7 +927,7 @@ else
       [[ $multi = true || $unit_file_state = enabled ]] &&
         _sysz_cmd "$RED" disable
 
-      # journal
+      _sysz_cmd "$RESET" status
       _sysz_cmd "$RESET" journal
       _sysz_cmd "$RESET" follow
 
@@ -938,7 +950,8 @@ fi
 _sysz_debug "cmds=${cmds[*]}"
 
 if [[ ${#cmds[@]} -eq 0 ]]; then
-  _sysz_quit 1
+  _sysz_code 1
+  _sysz_quit
 fi
 
 for pick in "${picks[@]}"; do
@@ -960,28 +973,23 @@ for pick in "${picks[@]}"; do
     case $cmd in
     journal)
       _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
-      _sysz_quit $?
       ;;
     follow)
+      set -x
       _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
-      _sysz_quit $?
       ;;
     status)
       _sysz_systemctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
-      _sysz_quit $?
       ;;
     cat | show)
       _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
-      _sysz_quit $?
       ;;
     *)
       _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
-      code=$?
       _sysz_systemctl "$mgr" status --no-pager -- "$unit"
-      if [[ ${#picks[@]} -eq 1 ]]; then
-        _sysz_quit "$code"
-      fi
       ;;
     esac
   done
 done
+
+_sysz_quit
