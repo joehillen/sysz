@@ -104,6 +104,7 @@ based on the state of the unit (e.g. "start" only shows if unit is "active").
 EOM
 readonly _sysz_description
 
+declare _sysz_opts
 __add _sysz_opts "-u, --user" "Only show --user units [default]."
 __add _sysz_opts "--sys, --system" "Only show --system units [default]."
 __add _sysz_opts "-s STATE, --state STATE" "Only show units in STATE (repeatable)."
@@ -165,11 +166,11 @@ __print_table() {
 _sysz_help() {
   # dynamically generate help message
   cat <<EOF
-${_sysz_title}
+$_sysz_title
 
-${_sysz_usage}
+$_sysz_usage
 
-${_sysz_description}
+$_sysz_description
 
 OPTS:
 $(__print_table _sysz_opts | sed 's/^/  /')
@@ -504,8 +505,7 @@ while [[ -n $1 ]]; do
     shift
     ;;
   -h | --help)
-    shift
-    _sysz_help "$@"
+    _sysz_help
     exit 0
     ;;
   *)
@@ -578,8 +578,7 @@ while [[ -n $1 ]]; do
     exit 0
     ;;
   h | help)
-    shift
-    _sysz_help "$@"
+    _sysz_help
     exit 0
     ;;
   # Handle short names
@@ -614,11 +613,13 @@ while [[ -n $1 ]]; do
     ;;
   -*)
     __red "ERROR: Unknown option: $1" >&2
-    echo -n "Usage: " >&2
-    _sysz_help usage >&2
-    echo >&2
-    echo -en "Options:\n  " >&2
-    _sysz_help opts >&2
+    cat <<EOF >&2
+Usage:
+  $_sysz_usage
+
+Options:
+$(__print_table _sysz_opts | sed 's/^/  /')
+EOF
     exit 1
     ;;
   *)
@@ -634,14 +635,6 @@ _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
-
-function join_by {
-  # https://stackoverflow.com/a/17841619/334632
-  local d=${1-} f=${2-}
-  if shift 2; then
-    printf %s "$f" "${@/#/$d}"
-  fi
-}
 
 _sysz_mgr_prompt() {
   if [[ $EUID -eq 0 ]]; then

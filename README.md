@@ -27,9 +27,9 @@ VERSION: 1.4.3
 ## Usage
 
 ```text
-syz - systemctl interactive fuzzy matching terminal UI using fzf.
+sysz - interactive terminal UI for systemctl
 
-Usage: sysz [OPTS...] [CMD] [-- ARGS...]
+sysz [OPTS...] [CMD] [-- ARGS...]
 
 sudo is invoked automatically, if necessary.
 
@@ -37,53 +37,37 @@ If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
 
 OPTS:
-
-  If no options are given, both system and user units are shown.
-
-  -u, --user                    Only show --user units
-  -t TYPE, --type TYPE          Only show units of TYPE (repeatable)
-  --sys, --system               Only show --system units
-  -s STATE, --state STATE       Only show units in STATE (repeatable)
-  -v, --version                 Print the version
-  -h, --help                    Print this message
-  --no-color                    Disable colors
-  -V, --verbose                 Print the systemctl command
-
-  If no options are given, both system and user units are shown.
-
-CMD:
-  start                  systemctl start <unit>
-  stop                   systemctl stop <unit>
-  r, restart             systemctl restart <unit>
-  s, stat, status        systemctl status <unit>
-  ed, edit               systemctl edit <unit>
-  reload                 systemctl reload <unit>
-  en, enable             systemctl enable <unit>
-  d, dis, disable        systemctl disable <unit>
-  c, cat                 systemctl cat <unit>
-
-  If no command is given, one or more can be chosen interactively.
+  -u, --user                  Only show --user units [default].
+  --sys, --system             Only show --system units [default].
+  -s STATE, --state STATE     Only show units in STATE (repeatable).
+  -t TYPE, --type TYPE        Only show units of TYPE (repeatable).
+  --no-color                  Disable colors.
+  -V, --verbose               Print the systemctl command.
+  -v, --version               Print the version.
+  -h, --help                  Print this message.
 
 ARGS are passed to the systemctl command for each selected unit.
 
 Keybindings:
-  Keyboard Bindings:
-  TAB           Toggle selection.
-  ctrl-r        Run daemon-reload. Selection is reset.
-  ctrl-x        Switch between the user or system manager. Selection is reset.
-  ctrl-s        Filter by states. Selection is reset.
-  ctrl-t        Filter by types. Selection is reset.
-  ctrl-v        'cat' the selected units in the preview window.
-  ctrl-p        History previous.
-  ctrl-n        History next.
-  left/right    Toggle word-wrapping in the preview window.
-                (fzf does not support horizontal scrolling)
-  ?             Show keybindings.
+  TAB            Toggle selection.
+  ctrl-r         Run daemon-reload. Selection is reset.
+  ctrl-x         Switch between user and system managers. Selection is reset.
+  ctrl-s         Filter by states. Selection is reset.
+  ctrl-t         Filter by types. Selection is reset.
+  ctrl-v         'cat' the selected units in the preview window.
+  ctrl-p         History previous.
+  ctrl-n         History next.
+  left|right     Toggle word-wrapping in the preview window.
+                 Note: fzf does not support horizontal scrolling.
+  shift-up       Scroll up in the preview window.
+  shift-down     Scroll down in the preview window.
+  ?              Show keybindings.
 
 Environment Variables:
-  
+  SYSZ_HISTORY     Command history file [default: /home/joe/.cache/sysz/history].
+  SYSZ_COLOR       Turn colors on or off [default: on].
 
-Some units are colored based on state:
+Units are colored based on their state:
   green       active
   red         failed
   yellow      not-found
@@ -91,19 +75,11 @@ Some units are colored based on state:
   other       cyan
 
 Examples:
-  sysz -u                             User units
-  sysz --sys -s active                Active system units
-  sysz --user --state failed          Failed user units
-  sysz --type socket                  Sockets
-  sysz --state=inactive -t service    Inactive services
-
-Examples With Commands:
-  sysz start                     Start a unit
-  sysz --sys s                   Get the status of system units
-  sysz --user edit               Edit user units
-  sysz s -- -n100                Show status with 100 log lines
-  sysz --sys -s active stop      Stop an active system unit
-  sysz -u --state failed r       Restart failed user units
+  sysz -u                             User units.
+  sysz --sys -s active                Active system units.
+  sysz --user --state failed          Failed user units.
+  sysz --type socket                  Sockets.
+  sysz --state=inactive -t service    Inactive services.
 ```
 
 ## Requirements

@@ -34,7 +34,7 @@ VERSION: $(cat VERSION)
 ## Usage
 
 ${CODE}text
-$(./sysz -h 2>&1 | sed -e "s:/home/[a-z]\+/.cache:\$XDG_CACHE_HOME:")
+$(./sysz -h)
 ${CODE}
 
 ## Requirements
@@ -115,10 +115,19 @@ sysz - A fuzzy matching terminal UI for systemctl
 
 $(./sysz -h usage)
 
-## Description: A description of the command or function.
-## Options: A list of command-line options, and what they do.
+## DESCRIPTION
+
+## OPTIONS
 
 $(./sysz -h opts_man)
+
+## ENVIRONMENT VARIABLES
+
+$(./sysz -h envvars_man)
+
+## COLORS
+
+$(./sysz -h colors)
 
 ## Examples: Some examples of common usage.
 ## Exit Values: The possible return codes and their meanings.
