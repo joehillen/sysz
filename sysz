@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 
 # shell options
-#set -x
+#set -o xtrace
 set -o pipefail
 shopt -s lastpipe
 shopt -s extglob
+
+#set -o errexit
+#set -o errtrace
+shopt -s extdebug
+
+#trap 'echo ERROR:$0:${LINENO} $BASH_COMMAND >&2' ERR
 
 # constants
 export SHELL=bash
@@ -13,15 +19,6 @@ PROG=$(basename "$0")
 SYSZ_VERSION=2.0.0-beta
 DEBUG_FILE=sysz.$(date -Iminutes).debug
 EXITCODE=0
-
-# colors
-RESET=$'\e[0m'
-RED=$'\e[31m'
-GREEN=$'\e[32m'
-YELLOW=$'\e[33m'
-BLUE=$'\e[34m'
-CYAN=$'\e[36m'
-GRAY=$'\e[37m'
 
 # environment variables
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-$HOME/.cache}/sysz/history}
@@ -41,6 +38,17 @@ case "$SYSZ_COLOR" in
 esac
 
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLOR}
+
+[[ $SYSZ_COLOR -eq 1 ]] && {
+    # colors
+    reset=$'\e[0m'
+    red=$'\e[31m'
+    green=$'\e[32m'
+    yellow=$'\e[33m'
+    blue=$'\e[34m'
+    cyan=$'\e[36m'
+    gray=$'\e[37m'
+}
 
 # global variables
 declare VERBOSE
@@ -96,15 +104,13 @@ __values() {
 readonly _sysz_title="sysz - interactive terminal UI for systemctl"
 readonly _sysz_usage="$PROG [OPTS...] [CMD] [-- ARGS...]"
 
-read -r -d '' _sysz_description <<EOM
+! read -r -d '' _sysz_description <<EOM
 sudo is invoked automatically, if necessary.
 
 If only one unit is chosen, available commands will be presented
 based on the state of the unit (e.g. "start" only shows if unit is "active").
 EOM
-readonly _sysz_description
 
-declare _sysz_opts
 __add _sysz_opts "-u, --user" "Only show --user units [default]."
 __add _sysz_opts "--sys, --system" "Only show --system units [default]."
 __add _sysz_opts "-s STATE, --state STATE" "Only show units in STATE (repeatable)."
@@ -126,6 +132,12 @@ __add _sysz_keys "left|right" "Toggle word-wrapping in the preview window."
 __add _sysz_keys "shift-up" "Scroll up in the preview window."
 __add _sysz_keys "shift-down" "Scroll down in the preview window."
 __add _sysz_keys "?" "Show keybindings."
+
+__add _sysz_colors active green
+__add _sysz_colors failed red
+__add _sysz_colors not-found yellow
+__add _sysz_colors template blue
+__add _sysz_colors other cyan
 
 __add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
 __add _sysz_envvars "SYSZ_COLOR" 'Turn colors on or off [default: on].'
@@ -184,11 +196,7 @@ Environment Variables:
 $(__print_table _sysz_envvars | sed 's/^/  /' | sed "s|\$XDG_CACHE_HOME|$XDG_CACHE_HOME|")
 
 Units are colored based on their state:
-  green       active
-  red         failed
-  yellow      not-found
-  template    blue
-  other       cyan
+$(__print_table _sysz_colors)
 
 Examples:
   $PROG -u                             User units.
@@ -201,17 +209,16 @@ EOF
 }
 
 # dynamically generate sysz help window
-read -r -d '' _fzf_help <<EOM
+! read -r -d '' _fzf_help <<EOM
 Keybindings:
 $(__print_table _sysz_keys)
 
 $([[ $SYSZ_COLOR = 1 ]] && {
   echo "States:"
-  echo "  ${GREEN}active${RESET}"
-  echo "  ${RED}failed${RESET}"
-  echo "  ${YELLOW}not-found${RESET}"
-  echo "  ${BLUE}template${RESET}"
-  echo "  ${CYAN}other${RESET}"
+  for state in $(__keys _sysz_colors); do 
+    color=$(__get _sysz_colors "$state")
+    echo "  ${!color}$state${reset}"
+  done
 })
 
 FZF Query Syntax:
@@ -227,11 +234,7 @@ _sysz_quit() {
 }
 
 __red() {
-  if [[ $SYSZ_COLOR = 1 ]]; then
-    echo -e "$RED$*$RESET"
-  else
-    echo "$*"
-  fi
+  echo -e "$red$*$reset"
 }
 
 _sysz_error() {
@@ -241,7 +244,9 @@ _sysz_error() {
 }
 
 _sysz_debug() {
-  [[ $DEBUG = true ]] && echo "$(date -Isec) '$*'" >>"$DEBUG_FILE"
+  if [[ $DEBUG = true ]]; then
+    echo "$(date -Isec): $*" >>"$DEBUG_FILE"
+  fi
 }
 
 _sysz_ctl() {
@@ -321,16 +326,8 @@ _sysz_show() {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
-_sysz_color_unit() {
-  local color
-  local reset
-  if [[ $SYSZ_COLOR = 1 ]]; then
-    color=$1
-    reset=$RESET
-  else
-    color=
-    reset=
-  fi
+_sysz_colorize_unit() {
+  local color=$1
   sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$reset"'\4,'
 }
 
@@ -339,7 +336,7 @@ _sysz_ls() {
   local state
   local filter
 
-  color=$CYAN
+  color=cyan
   filter=DO_NOT_MATCH
   for arg in "$@"; do
     case $arg in
@@ -347,33 +344,27 @@ _sysz_ls() {
       filter=${arg#--filter=} # strip --filter=
       shift
       ;;
-    --state=active)
-      color=$GREEN
-      ;;
-    --state=not-found)
-      color=$YELLOW
-      ;;
-    --state=failed)
-      color=$RED
-      ;;
-    '*@.*')
-      color=$BLUE
+    --state=*)
+      state=${arg#--state=} # strip --state=
+      color=$(__get _sysz_colors "$state")
+      _sysz_debug "color=$color"
+      shift
       ;;
     esac
   done
 
   for mgr in "${MANAGERS[@]}"; do
     _sysz_ctl "$(_sysz_mgr "$mgr")" \
-      --legend=false \
-      --full \
-      --plain \
-      --no-pager \
-      --all \
-      "$@" |
+        --legend=false \
+        --full \
+        --plain \
+        --no-pager \
+        --all \
+        "$@" |
       grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
       sed -Ee 's/ +/ /g;' |
-      _sysz_color_unit "$color" |
-      sed -e "s/^/[${mgr:0:1}] /"
+      _sysz_colorize_unit "${!color}" |
+      sed -e "s/^/[${mgr:0:1}] /" || :
   done
 }
 
@@ -439,7 +430,7 @@ _sysz_units() {
     _sysz_ls '--filter=failed|active|not-found' list-units --type=timer
     # show all remaining units
     _sysz_ls '--filter=failed|active|not-found' list-units |
-      grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
+      grep -Ev '^\[\S+\] \S+(\.service|\.timer)' || :
     # show all templates
     _sysz_ls list-unit-files '*@.*'
   fi
@@ -774,17 +765,9 @@ _sysz_tmpl_prompt() {
 }
 
 _sysz_cmd() {
-  local color
-  local reset
-  local code
-  reset=$RESET
-  color=$1
+  local color=$1
   shift
-  if [[ $SYSZ_COLOR != 1 ]]; then
-    color=
-    reset=
-  fi
-  cmd=$1
+  local cmd=$1
   shift
 
   if [[ ${#ARGS[@]} -gt 0 ]]; then
@@ -906,23 +889,23 @@ else
     --preview-window=80% < <(
       # restart
       [[ $multi = true || $active_state = active ]] &&
-        _sysz_cmd "$RED" restart
+        _sysz_cmd "$red" restart
       # start
       [[ $multi = true || $active_state != active ]] &&
-        _sysz_cmd "$GREEN" start
+        _sysz_cmd "$green" start
       # stop
       [[ $multi = true || $active_state = active ]] &&
-        _sysz_cmd "$RED" stop
+        _sysz_cmd "$red" stop
       # enable
       [[ $multi = true || $unit_file_state != enabled ]] &&
-        _sysz_cmd "$GREEN" enable
+        _sysz_cmd "$green" enable
       # disable
       [[ $multi = true || $unit_file_state = enabled ]] &&
-        _sysz_cmd "$RED" disable
+        _sysz_cmd "$red" disable
 
-      _sysz_cmd "$RESET" status
-      _sysz_cmd "$RESET" journal
-      _sysz_cmd "$RESET" follow
+      _sysz_cmd "$reset" status
+      _sysz_cmd "$reset" journal
+      _sysz_cmd "$reset" follow
 
       # reload
       [[ $multi = true || $can_reload = yes ]] &&
@@ -930,13 +913,13 @@ else
 
       # mask
       [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
-        _sysz_cmd "$RED" mask
+        _sysz_cmd "$red" mask
       [[ $multi = true || $unit_file_state = masked || $load_state = masked ]] &&
-        _sysz_cmd "$GREEN" unmask
+        _sysz_cmd "$green" unmask
 
-      _sysz_cmd "$RESET" cat
-      _sysz_cmd "$RESET" edit
-      _sysz_cmd "$RESET" show
+      _sysz_cmd "$reset" cat
+      _sysz_cmd "$reset" edit
+      _sysz_cmd "$reset" show
     ) |
     readarray -t cmds || _sysz_quit $?
 fi
