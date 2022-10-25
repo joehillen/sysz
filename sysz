@@ -40,14 +40,14 @@ esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLOR}
 
 [[ $SYSZ_COLOR -eq 1 ]] && {
-    # colors
-    reset=$'\e[0m'
-    red=$'\e[31m'
-    green=$'\e[32m'
-    yellow=$'\e[33m'
-    blue=$'\e[34m'
-    cyan=$'\e[36m'
-    gray=$'\e[37m'
+  # colors
+  reset=$'\e[0m'
+  red=$'\e[31m'
+  green=$'\e[32m'
+  yellow=$'\e[33m'
+  blue=$'\e[34m'
+  cyan=$'\e[36m'
+  gray=$'\e[37m'
 }
 
 # global variables
@@ -61,7 +61,7 @@ declare -a TYPES
 
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
-__add() {
+function __add {
   local var=$1
   local key=$2
   local val=$3
@@ -73,14 +73,14 @@ __add() {
   map["$key"]=$val
 }
 
-__get() {
+function __get {
   local var=$1
   local key=$2
   local -n tmp=${var}_MAP
   echo "${tmp[$key]}"
 }
 
-__keys() {
+function __keys {
   local var=$1
   local -n tmp=${var}_ORDER
   for x in "${tmp[@]}"; do
@@ -88,7 +88,7 @@ __keys() {
   done
 }
 
-__values() {
+function __values {
   local var=$1
   # shellcheck disable=SC2178
   local -n map=${var}_MAP
@@ -135,6 +135,8 @@ __add _sysz_keys "?" "Show keybindings."
 
 __add _sysz_colors active green
 __add _sysz_colors failed red
+__add _sysz_colors bad red
+__add _sysz_colors masked magenta
 __add _sysz_colors not-found yellow
 __add _sysz_colors template blue
 __add _sysz_colors other cyan
@@ -142,7 +144,7 @@ __add _sysz_colors other cyan
 __add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
 __add _sysz_envvars "SYSZ_COLOR" 'Turn colors on or off [default: on].'
 
-__max_len() {
+function __max_len {
   local max=0
   while read -r -d' ' str; do
     if [[ $max -lt ${#str} ]]; then
@@ -152,7 +154,7 @@ __max_len() {
   echo "$max"
 }
 
-__print_table() {
+function __print_table {
   # shellcheck disable=SC2178
   local -n map="$1_MAP"
   local -n keys="$1_ORDER"
@@ -175,7 +177,7 @@ __print_table() {
   done
 }
 
-_sysz_help() {
+function _sysz_help {
   # dynamically generate help message
   cat <<EOF
 $_sysz_title
@@ -215,7 +217,7 @@ $(__print_table _sysz_keys)
 
 $([[ $SYSZ_COLOR = 1 ]] && {
   echo "States:"
-  for state in $(__keys _sysz_colors); do 
+  for state in $(__keys _sysz_colors); do
     color=$(__get _sysz_colors "$state")
     echo "  ${!color}$state${reset}"
   done
@@ -225,7 +227,7 @@ FZF Query Syntax:
   TODO
 EOM
 
-_sysz_quit() {
+function _sysz_quit {
   local code
   code=${1:-$EXITCODE}
   _sysz_debug "quit=$code"
@@ -233,29 +235,30 @@ _sysz_quit() {
   exit "$code"
 }
 
-__red() {
+function __red {
   echo -e "$red$*$reset"
 }
 
-_sysz_error() {
+function _sysz_error {
   _sysz_debug "ERROR: $*"
   __red "ERROR: $*" >&2
   _sysz_quit 1
 }
 
-_sysz_debug() {
+function _sysz_debug {
   if [[ $DEBUG = true ]]; then
     echo "$(date -Isec): $*" >>"$DEBUG_FILE"
   fi
 }
 
-_sysz_ctl() {
+function _sysz_ctl {
+  echo "@@@ $*" >&2
   _sysz_debug "> systemctl $*"
   systemctl "$@"
   return $?
 }
 
-_sysz_verbose() {
+function _sysz_verbose {
   [[ $VERBOSE = true ]] && echo '>' "$@" >&2
   _sysz_debug "> $*"
   "$@"
@@ -264,17 +267,17 @@ _sysz_verbose() {
   return $code
 }
 
-_sysz_systemctl() {
+function _sysz_systemctl {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl --wait "$@" || EXITCODE=$?
+    _sysz_verbose sudo VISUAL="$VISUAL" EDITOR="$EDITOR" SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl "$@" || EXITCODE=$?
   else
-    _sysz_verbose systemctl --wait "$@" || EXITCODE=$?
+    _sysz_verbose systemctl "$@" || EXITCODE=$?
   fi
   return $?
 }
 
-_sysz_journalctl() {
+function _sysz_journalctl {
   if [[ $1 = --user ]]; then
     # use --user-unit flag if it's a user unit
     _sysz_verbose journalctl --user-unit="$2" "${@:3}" || EXITCODE=$?
@@ -289,7 +292,7 @@ _sysz_journalctl() {
   return $?
 }
 
-_sysz_mgr() {
+function _sysz_mgr {
   case ${1%% *} in
   '[u'* | user* | --user*)
     echo --user
@@ -303,11 +306,11 @@ _sysz_mgr() {
   esac
 }
 
-_fzf_cat() {
+function _fzf_cat {
   _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
-_fzf_preview() {
+function _fzf_preview {
   local unit
   local args
   local mgr
@@ -322,45 +325,54 @@ _fzf_preview() {
   fi
 }
 
-_sysz_show() {
+function _sysz_show {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
-_sysz_colorize_unit() {
+function _sysz_colorize_unit {
   local color=$1
+  # only add color to the unit name, not the [u]/[s] or description
+  # also cut out the extra info in the middle
   sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$reset"'\4,'
 }
 
-_sysz_ls() {
-  local color
-  local state
-  local filter
+function _sysz_ls {
+  local color=cyan
+  local filter=DO_NOT_MATCH
+  local state=
+  local verb=list-units
 
-  color=cyan
-  filter=DO_NOT_MATCH
+  args=()
   for arg in "$@"; do
     case $arg in
+    --verb=*)
+      verb=${arg#--verb=} # strip --verb=
+      continue
+      ;;
     --filter=*)
       filter=${arg#--filter=} # strip --filter=
-      shift
+      continue
       ;;
     --state=*)
       state=${arg#--state=} # strip --state=
-      color=$(__get _sysz_colors "$state")
+      color=$(__get _sysz_colors "${arg#--state=}")
       _sysz_debug "color=$color"
-      shift
+      [[ "masked bad" =~ $state ]] && verb=list-unit-files
       ;;
     esac
+    args+=("$arg")
   done
 
   for mgr in "${MANAGERS[@]}"; do
-    _sysz_ctl "$(_sysz_mgr "$mgr")" \
-        --legend=false \
-        --full \
-        --plain \
-        --no-pager \
-        --all \
-        "$@" |
+    _sysz_ctl \
+      "$verb" \
+      "$(_sysz_mgr "$mgr")" \
+      --legend=false \
+      --full \
+      --plain \
+      --no-pager \
+      --all \
+      "${args[@]}" |
       grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
       sed -Ee 's/ +/ /g;' |
       _sysz_colorize_unit "${!color}" |
@@ -368,7 +380,7 @@ _sysz_ls() {
   done
 }
 
-_sysz_units() {
+function _sysz_units {
   _sysz_debug "_sysz_units"
   _sysz_debug "STATES=${STATES[*]}"
   _sysz_debug "TYPES=${TYPES[*]}"
@@ -408,31 +420,39 @@ _sysz_units() {
     # failed service
     # failed timer
     # failed units
+    # bad service
+    # bad timer
+    # bad units
     # active service
     # active timer
     # active units
+    # masked
     # not-found
     # remaining service
     # remaining timer
     # remaining
     # templates
-    for state in failed active; do
-      _sysz_ls list-units "--state=$state" --type=service
-      _sysz_ls list-units "--state=$state" --type=timer
-      _sysz_ls list-units "--state=$state" |
-        grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
-    done
+    _sysz_ls list-units --state=failed --type=service
+    _sysz_ls list-units --state=failed --type=timer
+    _sysz_ls list-units --state=failed |
+      grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
+    _sysz_ls list-unit-files --state=bad
+    _sysz_ls --state=active --type=service
+    _sysz_ls --state=active --type=timer
+    _sysz_ls --state=active |
+      grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
     # show all not-found units
-    _sysz_ls list-units --state=not-found
+    _sysz_ls --state=not-found
     # show remaining services
-    _sysz_ls '--filter=failed|active|not-found' list-units --type=service
+    _sysz_ls '--filter=failed|active|not-found' --type=service
     # show remaining timers
-    _sysz_ls '--filter=failed|active|not-found' list-units --type=timer
+    _sysz_ls '--filter=failed|active|not-found' --type=timer
     # show all remaining units
-    _sysz_ls '--filter=failed|active|not-found' list-units |
+    _sysz_ls '--filter=failed|active|not-found' |
       grep -Ev '^\[\S+\] \S+(\.service|\.timer)' || :
     # show all templates
-    _sysz_ls list-unit-files '*@.*'
+    _sysz_ls --verb=list-unit-files | grep -E '@\.'
+    _sysz_ls --verb=list-unit-files '*@.*'
   fi
 }
 
@@ -511,7 +531,7 @@ _sysz_debug "TYPES=(${TYPES[*]})"
 _sysz_debug "VERBOSE=$VERBOSE"
 _sysz_debug "SYSZ_COLOR=$SYSZ_COLOR"
 
-_sysz_check_states() {
+function _sysz_check_states {
   for state in "${STATES[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
@@ -520,7 +540,7 @@ _sysz_check_states() {
   done
 }
 
-_sysz_check_types() {
+function _sysz_check_types {
   for unit_type in "${TYPES[@]}"; do
     _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
@@ -529,7 +549,7 @@ _sysz_check_types() {
   done
 }
 
-_sysz_fzf() {
+function _sysz_fzf {
   local color_arg
   _sysz_debug "_sysz_fzf"
   case "$SYSZ_COLOR" in
@@ -627,7 +647,7 @@ _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 mkdir -p "$(dirname "$SYSZ_HISTORY")"
 touch "$SYSZ_HISTORY"
 
-_sysz_mgr_prompt() {
+function _sysz_mgr_prompt {
   if [[ $EUID -eq 0 ]]; then
     echo system
     return
@@ -646,7 +666,7 @@ _sysz_mgr_prompt() {
   _sysz_debug "MANAGERS=${MANAGERS[*]}"
 }
 
-_sysz_daemon_reload_prompt() {
+function _sysz_daemon_reload_prompt {
   local managers
   (
     if [[ $EUID -ne 0 ]]; then
@@ -667,7 +687,7 @@ _sysz_daemon_reload_prompt() {
   done
 }
 
-_sysz_states_prompt() {
+function _sysz_states_prompt {
   local picked
   # hide 'ing' because they are transient states
   # which people probably aren't looking for
@@ -715,7 +735,7 @@ _sysz_states_prompt() {
   _sysz_check_states
 }
 
-_sysz_types_prompt() {
+function _sysz_types_prompt {
   local picked
   (
     echo '(all)'
@@ -747,7 +767,7 @@ _sysz_types_prompt() {
   _sysz_check_types
 }
 
-_sysz_tmpl_prompt() {
+function _sysz_tmpl_prompt {
   local unit
   unit=$1
   # Handle template units
@@ -764,7 +784,7 @@ _sysz_tmpl_prompt() {
   echo "$unit"
 }
 
-_sysz_cmd() {
+function _sysz_cmd {
   local color=$1
   shift
   local cmd=$1
@@ -782,11 +802,7 @@ declare multi
 declare -a picks
 declare -a cmds
 
-while :; do
-  picks=()
-  key=
-
-  # prompt units
+function _sysz_prompt_units {
   _sysz_units |
     _sysz_fzf \
       --multi \
@@ -799,57 +815,13 @@ while :; do
       --bind "?:preview(echo '$_fzf_help')" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
       --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
-      --preview-window=down |
-    readarray -t results
-  _sysz_debug "results=${results[*]}"
+      --preview-window=down
+}
 
-  # The first result from fzf is always the key
-  key=${results[0]}
-  _sysz_debug "key=$key"
+function _sysz_prompt_commands {
+  declare -a picks
+  picks=("$@")
 
-  # results are of the form '[s] foo.service'
-  for result in "${results[@]:1}"; do
-    _sysz_debug "result=$result"
-    IFS=" " read -r -a words <<<"$result"
-    _sysz_debug "words=${words[*]}"
-    # picks are of the form: [s] foo.service
-    picks+=("${words[0]} ${words[1]}")
-  done
-
-  _sysz_debug "picks=${picks[*]}"
-
-  case $key in
-  ctrl-r)
-    _sysz_daemon_reload_prompt
-    continue
-    ;;
-  ctrl-t)
-    _sysz_types_prompt
-    continue
-    ;;
-  ctrl-s)
-    _sysz_states_prompt
-    continue
-    ;;
-  ctrl-x)
-    _sysz_mgr_prompt
-    continue
-    ;;
-  esac
-
-  if [[ ${#picks[@]} -eq 0 ]]; then
-    _sysz_quit 1
-  fi
-
-  break
-
-done
-
-if [[ -n $CMD ]]; then
-  cmds=("$CMD")
-else
-
-  multi=
   if [[ ${#picks[@]} -gt 1 ]]; then
     printf -v preview '%s\n' "${picks[*]}"
     _sysz_debug "preview=$preview"
@@ -860,7 +832,7 @@ else
     pick=${picks[0]}
     _sysz_debug "pick=$pick"
 
-    pick=$(_sysz_tmpl_prompt "$pick")
+    #pick=$(_sysz_tmpl_prompt "$pick")
 
     # Get states to filter the command options
     active_state=$(_sysz_show "$pick" ActiveState)
@@ -878,7 +850,6 @@ else
 
   _sysz_debug "multi=$multi"
 
-  # prompt commands
   _sysz_fzf \
     --multi \
     --ansi \
@@ -909,7 +880,7 @@ else
 
       # reload
       [[ $multi = true || $can_reload = yes ]] &&
-        _sysz_cmd "$GRAY" reload
+        _sysz_cmd "$gray" reload
 
       # mask
       [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
@@ -920,17 +891,62 @@ else
       _sysz_cmd "$reset" cat
       _sysz_cmd "$reset" edit
       _sysz_cmd "$reset" show
-    ) |
-    readarray -t cmds || _sysz_quit $?
-fi
-_sysz_debug "cmds=${cmds[*]}"
+    ) || _sysz_quit $?
+}
 
-if [[ ${#cmds[@]} -eq 0 ]]; then
-  _sysz_code 1
-  _sysz_quit
+function _sysz_handle_key {
+  local key=$1
+  _sysz_debug "key=$key"
+  case $key in
+  ctrl-r)
+    _sysz_daemon_reload_prompt
+    return
+    ;;
+  ctrl-t)
+    _sysz_types_prompt
+    return
+    ;;
+  ctrl-s)
+    _sysz_states_prompt
+    return
+    ;;
+  ctrl-x)
+    _sysz_mgr_prompt
+    return
+    ;;
+  esac
+  return 1
+}
+
+declare -a results
+while :; do
+  _sysz_prompt_units | readarray -t picks
+  _sysz_debug "picks=${picks[*]:1}"
+
+  # The first result from fzf is always the key
+  _sysz_handle_key "${picks[0]}" || break
+done
+
+declare -p picks
+# results look like '[s] foo.service With a description'
+for result in "${results[@]:1}"; do                      
+  _sysz_debug "result=$result"                           
+  # read the first 2 words and throw away the rest       
+  IFS=" " read -r -a words <<<"$result"                  
+  _sysz_debug "words=${words[*]}"                       
+  # picks are of the form: [s] foo.service              
+  picks+=("${words[0]} ${words[1]}")                    
+done                                                    
+          
+if [[ ${#picks[@]} -eq 0 ]]; then
+  _sysz_quit 1
 fi
 
-for pick in "${picks[@]}"; do
+function _sysz_handle_command {
+  local pick=$1
+  local cmd=$2
+  local mgr
+  local unit
 
   _sysz_debug "pick=$pick"
   mgr=$(_sysz_mgr "$pick")
@@ -938,34 +954,58 @@ for pick in "${picks[@]}"; do
   unit=${pick##* }
   _sysz_debug "unit=$unit"
 
-  unit=$(_sysz_tmpl_prompt "$unit")
+  _sysz_debug "unit=$unit"
+  _sysz_debug "cmd=$cmd"
+  # remove surrounding whitespace
+  cmd=${cmd%% *}
+  cmd=${cmd##* }
+  _sysz_debug "cmd=$cmd"
+  case $cmd in
+  edit)
+    _sysz_systemctl "$mgr" cat -- "$unit" | cksum | read -r pre_sum
+    _sysz_systemctl "$mgr" edit -- "$unit" 
+    _sysz_systemctl "$mgr" cat -- "$unit" | cksum | read -r post_sum
+    if [[ $pre_sum != "$post_sum" ]]; then
+      _sysz_systemctl "$mgr" daemon-reload
+      _sysz_do_commands "$pick"
+    fi
+    ;;
+  journal)
+    _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
+    ;;
+  follow)
+    set -x
+    _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
+    ;;
+  status)
+    _sysz_systemctl "$mgr" "$cmd" --pager "${ARGS[@]}" -- "$unit"
+    ;;
+  cat | show)
+    _sysz_systemctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
+    ;;
+  *)
+    _sysz_systemctl "$mgr" "$cmd" --no-block "${ARGS[@]}" -- "$unit"
+    _sysz_systemctl "$mgr" status --no-pager -- "$unit"
+    ;;
+  esac
+}
 
+function _sysz_do_commands {
+  declare -a picks
+  picks=("$@")
+  declare -a cmds
+  if [[ $CMD ]]; then
+    cmds=("$CMD")
+  else
+    _sysz_prompt_commands "${picks[@]}" | readarray -t cmds
+  fi
   _sysz_debug "cmds=${cmds[*]}"
-  for cmd in "${cmds[@]}"; do
-    _sysz_debug "cmd=$cmd"
-    cmd=${cmd%% *}
-    cmd=${cmd##* }
-    _sysz_debug "cmd=$cmd"
-    case $cmd in
-    journal)
-      _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
-      ;;
-    follow)
-      set -x
-      _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
-      ;;
-    status)
-      _sysz_systemctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
-      ;;
-    cat | show)
-      _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
-      ;;
-    *)
-      _sysz_systemctl "$mgr" "$cmd" "${ARGS[@]}" -- "$unit"
-      _sysz_systemctl "$mgr" status --no-pager -- "$unit"
-      ;;
-    esac
+
+  for pick in "${picks[@]}"; do
+    for cmd in "${cmds[@]}"; do
+      _sysz_handle_command "$pick" "$cmd"
+    done
   done
-done
+}
 
 _sysz_quit
