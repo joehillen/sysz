@@ -253,7 +253,6 @@ function _sysz_debug {
 }
 
 function _sysz_ctl {
-  echo "@@@ $*" >&2
   _sysz_debug "> systemctl $*"
   systemctl "$@"
   return $?
@@ -688,6 +687,21 @@ function _sysz_daemon_reload_prompt {
   done
 }
 
+function _sysz_ls_states {
+  echo '(all)'
+  printf '%s\n' "${prefered[@]}"
+  systemctl --state=help |
+    grep -v ':' |
+    grep -v 'ing' |
+    grep -Ev "^$(
+      printf '%s|' "${prefered[@]:0:${#prefered[@]}-1}"
+      echo "${prefered[*]: -1}"
+    )$" |
+    sort -u |
+    grep -v '^$'
+}
+
+
 function _sysz_states_prompt {
   local picked
   # hide 'ing' because they are transient states
@@ -704,19 +718,7 @@ function _sysz_states_prompt {
     bad
     error
   )
-  (
-    echo '(all)'
-    printf '%s\n' "${prefered[@]}"
-    systemctl --state=help |
-      grep -v ':' |
-      grep -v 'ing' |
-      grep -Ev "^$(
-        printf '%s|' "${prefered[@]:0:${#prefered[@]}-1}"
-        echo "${prefered[*]: -1}"
-      )$" |
-      sort -u |
-      grep -v '^$'
-  ) |
+  _sysz_ls_states |
     _sysz_fzf \
       --multi \
       --no-sort \
@@ -736,19 +738,21 @@ function _sysz_states_prompt {
   _sysz_check_states
 }
 
+function _sysz_ls_types {
+  echo '(all)'
+  echo service
+  echo timer
+  systemctl --type=help |
+    grep -v ':' |
+    grep -Ev '(service|timer)' |
+    sort -u |
+    grep -v '^$'
+  echo template
+}
+
 function _sysz_types_prompt {
   local picked
-  (
-    echo '(all)'
-    echo service
-    echo timer
-    systemctl --type=help |
-      grep -v ':' |
-      grep -Ev '(service|timer)' |
-      sort -u |
-      grep -v '^$'
-    echo template
-  ) |
+  _sysz_ls_types |
     _sysz_fzf \
       --multi \
       --no-sort \
