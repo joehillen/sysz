@@ -357,7 +357,7 @@ function _sysz_ls {
       state=${arg#--state=} # strip --state=
       color=$(__get _sysz_colors "${arg#--state=}")
       _sysz_debug "color=$color"
-      [[ "masked bad" =~ $state ]] && verb=list-unit-files
+      [[ $state =~ masked|bad ]] && verb=list-unit-files
       ;;
     esac
     args+=("$arg")
@@ -543,7 +543,7 @@ function _sysz_check_states {
 function _sysz_check_types {
   for unit_type in "${TYPES[@]}"; do
     _sysz_debug "unit_type=$unit_type"
-    if [[ -n $unit_type ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
+    if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
     fi
   done
@@ -837,6 +837,7 @@ function _sysz_prompt_commands {
     pick=${picks[0]}
     _sysz_debug "pick=$pick"
 
+    # TODO: Move this to after the command is selected
     #pick=$(_sysz_tmpl_prompt "$pick")
 
     # Get states to filter the command options
