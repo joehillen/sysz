@@ -13,42 +13,47 @@ shopt -s extdebug
 #trap 'echo ERROR:$0:${LINENO} $BASH_COMMAND >&2' ERR
 
 # constants
-export SHELL=bash
-MIN_FZF_VERSION=0.27.1
+declare -rx SHELL=bash
+declare -r MIN_FZF_VERSION=0.27.1
+declare -r PROG
 PROG=$(basename "$0")
-SYSZ_VERSION=2.0.0-beta
+declare -r SYSZ_VERSION=2.0.0-beta
+declare -r DEBUG_FILE
 DEBUG_FILE=sysz.$(date -Iminutes).debug
+
+# variables
 EXITCODE=0
 
 # environment variables
 SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-$HOME/.cache}/sysz/history}
-case "$SYSZ_COLOR" in
+case "$SYSZ_COLORS" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
-  SYSZ_COLOR=0
+  SYSZ_COLORS=0
   ;;
 *)
   ncolors=$(tput colors)
 
   if [[ -n $ncolors && $ncolors -ge 8 ]]; then
-    SYSZ_COLOR=1
+    SYSZ_COLORS=1
   else
-    SYSZ_COLOR=0
+    SYSZ_COLORS=0
   fi
   ;;
 esac
 
-export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLOR}
+export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 
-[[ $SYSZ_COLOR -eq 1 ]] && {
-  # colors
-  reset=$'\e[0m'
-  red=$'\e[31m'
-  green=$'\e[32m'
-  yellow=$'\e[33m'
-  blue=$'\e[34m'
-  magenta=$'\e[35m'
-  cyan=$'\e[36m'
-  gray=$'\e[37m'
+[[ $SYSZ_COLORS -eq 1 ]] && {
+  declare -rA COLORS=(
+    [reset]=$'\e[0m'
+    [red]=$'\e[31m'
+    [green]=$'\e[32m'
+    [yellow]=$'\e[33m'
+    [blue]=$'\e[34m'
+    [magenta]=$'\e[35m'
+    [cyan]=$'\e[36m'
+    [gray]=$'\e[37m'
+  )
 }
 
 # global variables
@@ -134,16 +139,16 @@ __add _sysz_keys "shift-up" "Scroll up in the preview window."
 __add _sysz_keys "shift-down" "Scroll down in the preview window."
 __add _sysz_keys "?" "Show keybindings."
 
-__add _sysz_colors active green
-__add _sysz_colors failed red
-__add _sysz_colors bad red
-__add _sysz_colors masked magenta
-__add _sysz_colors not-found yellow
-__add _sysz_colors template blue
-__add _sysz_colors other cyan
+__add _sysz_state_color active green
+__add _sysz_state_color failed red
+__add _sysz_state_color bad red
+__add _sysz_state_color masked magenta
+__add _sysz_state_color not-found yellow
+__add _sysz_state_color template blue
+__add _sysz_state_color other cyan
 
 __add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
-__add _sysz_envvars "SYSZ_COLOR" 'Turn colors on or off [default: on].'
+__add _sysz_envvars "SYSZ_COLORS" 'Turn colors on or off [default: on].'
 
 function __max_len {
   local max=0
@@ -199,7 +204,7 @@ Environment Variables:
 $(__print_table _sysz_envvars | sed 's/^/  /' | sed "s|\$XDG_CACHE_HOME|$XDG_CACHE_HOME|")
 
 Units are colored based on their state:
-$(__print_table _sysz_colors)
+$(__print_table _sysz_state_color)
 
 Examples:
   $PROG -u                             User units.
@@ -212,15 +217,15 @@ EOF
 }
 
 # dynamically generate sysz help window
-! read -r -d '' _fzf_help <<EOM
+! read -r -d '' _sysz_fzf_help <<EOM
 Keybindings:
 $(__print_table _sysz_keys)
 
-$([[ $SYSZ_COLOR = 1 ]] && {
+$([[ $SYSZ_COLORS = 1 ]] && {
   echo "States:"
-  for state in $(__keys _sysz_colors); do
-    color=$(__get _sysz_colors "$state")
-    echo "  ${!color}$state${reset}"
+  for state in $(__keys _sysz_state_colors); do
+    color=$(__get _sysz_state_colors "$state")
+    echo "  ${COLORS[$color]}$state${COLORS[reset]}"
   done
 })
 
@@ -229,33 +234,29 @@ FZF Query Syntax:
 EOM
 
 function _sysz_quit {
-  local code
-  code=${1:-$EXITCODE}
+  local code=${1:-$EXITCODE}
   _sysz_debug "quit=$code"
   [[ $DEBUG = true ]] && cat "$DEBUG_FILE" >&2
   exit "$code"
 }
 
-function __red {
-  echo -e "$red$*$reset"
+function _sysz_colorize {
+  local color=$1
+  echo -e "${COLOR[$color]}$*${COLOR[reset]}"
 }
 
 function _sysz_error {
   _sysz_debug "ERROR: $*"
-  __red "ERROR: $*" >&2
+  _sysz_colorize red "ERROR: $*" >&2
   _sysz_quit 1
 }
 
 function _sysz_debug {
-  if [[ $DEBUG = true ]]; then
-    echo "$(date -Isec): $*" >>"$DEBUG_FILE"
-  fi
+  [[ $DEBUG = true ]] && echo "$(date -Isec): $*" >>"$DEBUG_FILE"
 }
 
 function _sysz_ctl {
-  _sysz_debug "> systemctl $*"
-  systemctl "$@"
-  return $?
+  _sysz_verbose systemctl "$@"
 }
 
 function _sysz_verbose {
@@ -263,18 +264,17 @@ function _sysz_verbose {
   _sysz_debug "> $*"
   "$@"
   code=$?
-  [[ $VERBOSE = true && $code != 0 ]] && __red "ERROR: Failed: $*" >&2
+  [[ $VERBOSE = true && $code != 0 ]] && _sysz_colorize red "ERROR: Failed: $*" >&2
   return $code
 }
 
 function _sysz_systemctl {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo VISUAL="$VISUAL" EDITOR="$EDITOR" SYSTEMD_COLORS="$SYSTEMD_COLORS" systemctl "$@" || EXITCODE=$?
+    _sysz_verbose sudo -E systemctl "$@" || EXITCODE=$?
   else
     _sysz_verbose systemctl "$@" || EXITCODE=$?
   fi
-  return $?
 }
 
 function _sysz_journalctl {
@@ -289,7 +289,6 @@ function _sysz_journalctl {
       _sysz_verbose journalctl --unit="$2" "${@:3}" || EXITCODE=$?
     fi
   fi
-  return $?
 }
 
 function _sysz_mgr {
@@ -306,11 +305,11 @@ function _sysz_mgr {
   esac
 }
 
-function _fzf_cat {
+function _sysz_fzf_cat {
   _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
-function _fzf_preview {
+function _sysz_fzf_preview {
   local unit
   local args
   local mgr
@@ -319,7 +318,7 @@ function _fzf_preview {
   unit=${args[1]}
 
   if [[ $unit = *@.* ]]; then
-    _fzf_cat "${args[@]}"
+    _sysz_fzf_cat "${args[@]}"
   else
     _sysz_ctl "$mgr" status --no-pager -- "$unit"
   fi
@@ -355,7 +354,7 @@ function _sysz_ls {
       ;;
     --state=*)
       state=${arg#--state=} # strip --state=
-      color=$(__get _sysz_colors "${arg#--state=}")
+      color=$(__get _sysz_state_colors "${arg#--state=}")
       _sysz_debug "color=$color"
       [[ $state =~ masked|bad ]] && verb=list-unit-files
       ;;
@@ -500,7 +499,7 @@ while [[ -n $1 ]]; do
     shift
     ;;
   --no-color)
-    SYSZ_COLOR=0
+    SYSZ_COLORS=0
     shift
     ;;
   -v | --version)
@@ -529,7 +528,7 @@ _sysz_debug "MANAGERS=(${MANAGERS[*]})"
 _sysz_debug "STATES=(${STATES[*]})"
 _sysz_debug "TYPES=(${TYPES[*]})"
 _sysz_debug "VERBOSE=$VERBOSE"
-_sysz_debug "SYSZ_COLOR=$SYSZ_COLOR"
+_sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
 function _sysz_check_states {
   for state in "${STATES[@]}"; do
@@ -552,7 +551,7 @@ function _sysz_check_types {
 function _sysz_fzf {
   local color_arg
   _sysz_debug "_sysz_fzf"
-  case "$SYSZ_COLOR" in
+  case "$SYSZ_COLORS" in
   1)
     color_arg=--ansi
     ;;
@@ -566,7 +565,6 @@ function _sysz_fzf {
     --bind "left:toggle-preview-wrap" \
     "${color_arg}" \
     "$@"
-  return $?
 }
 
 _sysz_check_states
@@ -574,14 +572,14 @@ _sysz_check_types
 
 while [[ -n $1 ]]; do
   case $1 in
-  _fzf_preview)
+  _sysz_fzf_preview)
     shift
-    _fzf_preview "$@"
+    _sysz_fzf_preview "$@"
     exit 0
     ;;
-  _fzf_cat)
+  _sysz_fzf_cat)
     shift
-    _fzf_cat "$@"
+    _sysz_fzf_cat "$@"
     exit 0
     ;;
   _sysz_units)
@@ -817,9 +815,9 @@ function _sysz_prompt_units {
       --history="$SYSZ_HISTORY" \
       --prompt="Units: " \
       --header '? for keybindings' \
-      --bind "?:preview(echo '$_fzf_help')" \
-      --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _fzf_cat {})" \
-      --preview="'${BASH_SOURCE[0]}' _fzf_preview {}" \
+      --bind "?:preview(echo '$_sysz_fzf_help')" \
+      --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
+      --preview="'${BASH_SOURCE[0]}' _sysz_fzf_preview {}" \
       --preview-window=down
 }
 
@@ -850,7 +848,7 @@ function _sysz_prompt_commands {
     _sysz_debug "unit_file_state=$unit_file_state"
     can_reload=$(_sysz_show "$pick" CanReload)
     _sysz_debug "can_reload=$can_reload"
-    preview_cmd="'${BASH_SOURCE[0]}' _fzf_preview '$pick'"
+    preview_cmd="'${BASH_SOURCE[0]}' _sysz_fzf_preview '$pick'"
     _sysz_debug "preview_cmd=$preview_cmd"
   fi
 
