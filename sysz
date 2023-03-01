@@ -65,6 +65,7 @@ declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
 
+
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
 function __add {
@@ -149,6 +150,17 @@ __add _sysz_state_color other cyan
 
 __add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
 __add _sysz_envvars "SYSZ_COLORS" 'Turn colors on or off [default: on].'
+
+# Data Structures
+#   Unit
+#     Type
+#     Name
+#     Description
+#     LoadState
+#     ActiveState
+#     UnitFileState
+#     CanReload
+#     Manager
 
 function __max_len {
   local max=0
