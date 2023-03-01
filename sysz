@@ -15,11 +15,11 @@ shopt -s extdebug
 # constants
 declare -rx SHELL=bash
 declare -r MIN_FZF_VERSION=0.27.1
-declare -r PROG
-PROG=$(basename "$0")
+declare -r prog
+prog=$(basename "$0")
 declare -r SYSZ_VERSION=2.0.0-beta
-declare -r DEBUG_FILE
-DEBUG_FILE=sysz.$(date -Iminutes).debug
+declare -r debug_file
+debug_file=sysz.$(date -Iminutes).debug
 
 # variables
 EXITCODE=0
@@ -65,7 +65,6 @@ declare -a MANAGERS
 declare -a STATES
 declare -a TYPES
 
-
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
 function __add {
@@ -109,7 +108,7 @@ function __values {
 
 # help
 readonly _sysz_title="sysz - interactive terminal UI for systemctl"
-readonly _sysz_usage="$PROG [OPTS...] [CMD] [-- ARGS...]"
+readonly _sysz_usage="$prog [OPTS...] [CMD] [-- ARGS...]"
 
 ! read -r -d '' _sysz_description <<EOM
 sudo is invoked automatically, if necessary.
@@ -219,11 +218,11 @@ Units are colored based on their state:
 $(__print_table _sysz_state_color)
 
 Examples:
-  $PROG -u                             User units.
-  $PROG --sys -s active                Active system units.
-  $PROG --user --state failed          Failed user units.
-  $PROG --type socket                  Sockets.
-  $PROG --state=inactive -t service    Inactive services.
+  $prog -u                             User units.
+  $prog --sys -s active                Active system units.
+  $prog --user --state failed          Failed user units.
+  $prog --type socket                  Sockets.
+  $prog --state=inactive -t service    Inactive services.
 EOF
 
 }
@@ -246,9 +245,9 @@ FZF Query Syntax:
 EOM
 
 function _sysz_quit {
-  local code=${1:-$EXITCODE}
+  local code=${1:-$exitcode}
   _sysz_debug "quit=$code"
-  [[ $DEBUG = true ]] && cat "$DEBUG_FILE" >&2
+  [[ $DEBUG = true ]] && cat "$debug_file" >&2
   exit "$code"
 }
 
@@ -264,7 +263,7 @@ function _sysz_error {
 }
 
 function _sysz_debug {
-  [[ $DEBUG = true ]] && echo "$(date -Isec): $*" >>"$DEBUG_FILE"
+  [[ $DEBUG = true ]] && echo "$(date -Isec): $*" >>"$debug_file"
 }
 
 function _sysz_ctl {
@@ -283,9 +282,9 @@ function _sysz_verbose {
 function _sysz_systemctl {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo -E systemctl "$@" || EXITCODE=$?
+    _sysz_verbose sudo -E systemctl "$@" || exitcode=$?
   else
-    _sysz_verbose systemctl "$@" || EXITCODE=$?
+    _sysz_verbose systemctl "$@" || exitcode=$?
   fi
 }
 
@@ -711,7 +710,6 @@ function _sysz_ls_states {
     grep -v '^$'
 }
 
-
 function _sysz_states_prompt {
   local picked
   # hide 'ing' because they are transient states
@@ -945,15 +943,15 @@ done
 
 declare -p picks
 # results look like '[s] foo.service With a description'
-for result in "${results[@]:1}"; do                      
-  _sysz_debug "result=$result"                           
-  # read the first 2 words and throw away the rest       
-  IFS=" " read -r -a words <<<"$result"                  
-  _sysz_debug "words=${words[*]}"                       
-  # picks are of the form: [s] foo.service              
-  picks+=("${words[0]} ${words[1]}")                    
-done                                                    
-          
+for result in "${results[@]:1}"; do
+  _sysz_debug "result=$result"
+  # read the first 2 words and throw away the rest
+  IFS=" " read -r -a words <<<"$result"
+  _sysz_debug "words=${words[*]}"
+  # picks are of the form: [s] foo.service
+  picks+=("${words[0]} ${words[1]}")
+done
+
 if [[ ${#picks[@]} -eq 0 ]]; then
   _sysz_quit 1
 fi
@@ -979,7 +977,7 @@ function _sysz_handle_command {
   case $cmd in
   edit)
     _sysz_systemctl "$mgr" cat -- "$unit" | cksum | read -r pre_sum
-    _sysz_systemctl "$mgr" edit -- "$unit" 
+    _sysz_systemctl "$mgr" edit -- "$unit"
     _sysz_systemctl "$mgr" cat -- "$unit" | cksum | read -r post_sum
     if [[ $pre_sum != "$post_sum" ]]; then
       _sysz_systemctl "$mgr" daemon-reload
