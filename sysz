@@ -386,7 +386,7 @@ function _sysz_units {
   _sysz_ls red list-units --type=service --type=timer "${bad_state_args[@]}"
   _sysz_ls green list-units --type=service --type=timer --state=active
   _sysz_ls white list-units --type=service --type=timer --state=inactive
-  exit 0
+  return 0
   # show all not-found units
   _sysz_ls list-units --state=not-found
   # show remaining services
@@ -399,80 +399,6 @@ function _sysz_units {
   _sysz_ls list-unit-files | grep -E '@\.'
   _sysz_ls list-unit-files '*@.*'
 }
-
-# main
-_sysz_debug "fzf version=$(fzf --version)"
-
-# check fzf version
-if [[ "$(printf '%s\n' "$MIN_FZF_VERSION" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF_VERSION" ]]; then
-  _sysz_error "fzf >= $MIN_FZF_VERSION required. https://github.com/junegunn/fzf#upgrading-fzf"
-  _sysz_quit 1
-fi
-
-# root does not have user units
-if [[ $EUID -eq 0 ]]; then
-  picked_managers=(system)
-else
-  picked_managers=(user system)
-fi
-
-while [[ -n $1 ]]; do
-  case $1 in
-  -u | --user)
-    picked_managers=(user)
-    shift
-    ;;
-  --sys | --system)
-    picked_managers=(system)
-    shift
-    ;;
-  -s | --state)
-    picked_states+=("$2")
-    shift
-    shift
-    ;;
-  --state=*)
-    picked_states+=("${1#--state=}")
-    shift
-    ;;
-  -t | --type)
-    picked_types+=("$2")
-    shift
-    shift
-    ;;
-  --type=*)
-    picked_types+=("${1#--type=}")
-    shift
-    ;;
-  --no-color)
-    SYSZ_COLORS=0
-    shift
-    ;;
-  -v | --version)
-    echo "$prog" $sysz_version
-    exit 0
-    ;;
-  --debug)
-    SYSZ_DEBUG=true
-    shift
-    ;;
-  -V | --verbose)
-    SYSZ_VERBOSE=true
-    shift
-    ;;
-  -h)
-    _sysz_short_help
-    exit 0
-    ;;
-  --help)
-    _sysz_help
-    exit 0
-    ;;
-  *)
-    break
-    ;;
-  esac
-done
 
 function _sysz_check_states {
   for state in "${picked_states[@]}"; do
@@ -512,70 +438,6 @@ function _sysz_fzf {
     "${color_arg}" \
     "$@"
 }
-
-_sysz_check_states
-_sysz_check_types
-
-while [[ -n $1 ]]; do
-  case $1 in
-  _*)
-    cmd=$1
-    shift
-    "$cmd" "$@"
-    exit $?
-    ;;
-  h | help)
-    _sysz_help
-    exit 0
-    ;;
-  # Handle short names
-  re)
-    CMD=restart
-    ;;
-  s)
-    CMD=status
-    ;;
-  ed)
-    CMD=edit
-    ;;
-  en)
-    CMD=enable
-    ;;
-  d | dis)
-    CMD=disable
-    ;;
-  j)
-    CMD=journal
-    ;;
-  f)
-    CMD=follow
-    ;;
-  c)
-    CMD="cat"
-    ;;
-  --)
-    shift
-    ARGS=("$@")
-    break
-    ;;
-  -*)
-    _sysz_color red "ERROR: Unknown option: $1" >&2
-    _sysz_short_help >&2
-    exit 1
-    ;;
-  *)
-    # assume the next argument is a command name
-    CMD=$1
-    ;;
-  esac
-  shift
-done
-
-_sysz_debug "CMD=$CMD"
-_sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
-
-mkdir -p "$(dirname "$SYSZ_HISTORY")"
-touch "$SYSZ_HISTORY"
 
 function _sysz_mgr_prompt {
   if [[ $EUID -eq 0 ]]; then
@@ -650,7 +512,6 @@ function _sysz_ls_states {
 }
 
 function _sysz_states_prompt {
-  local picked
   _sysz_ls_states |
     _sysz_fzf \
       --multi \
@@ -682,7 +543,6 @@ function _sysz_ls_types {
 }
 
 function _sysz_types_prompt {
-  local picked
   _sysz_ls_types |
     _sysz_fzf \
       --multi \
@@ -726,9 +586,9 @@ function _sysz_cmd {
   shift
 
   if [[ ${#ARGS[@]} -gt 0 ]]; then
-    echo "$color$cmd$reset ${ARGS[*]}"
+    echo -e "$color$cmd$reset ${ARGS[*]}"
   else
-    echo "$color$cmd$reset"
+    echo -e "$color$cmd$reset"
   fi
 }
 
@@ -919,6 +779,135 @@ function _sysz_do_commands {
 }
 
 function _sysz_main {
+  # main
+  _sysz_debug "fzf version=$(fzf --version)"
+
+  # check fzf version
+  if [[ "$(printf '%s\n' "$MIN_FZF_VERSION" "$(fzf --version | cut -d' ' -f1)" | sort -V | head -n1)" != "$MIN_FZF_VERSION" ]]; then
+    _sysz_error "fzf >= $MIN_FZF_VERSION required. https://github.com/junegunn/fzf#upgrading-fzf"
+    _sysz_quit 1
+  fi
+
+  # root does not have user units
+  if [[ $EUID -eq 0 ]]; then
+    picked_managers=(system)
+  else
+    picked_managers=(user system)
+  fi
+
+  while [[ -n $1 ]]; do
+    case $1 in
+    -u | --user)
+      picked_managers=(user)
+      ;;
+    --sys | --system)
+      picked_managers=(system)
+      ;;
+    --state=*)
+      picked_states+=("${1#--state=}")
+      ;;
+    -s | --state)
+      picked_states+=("$2")
+      shift
+      ;;
+    --type=*)
+      picked_types+=("${1#--type=}")
+      ;;
+    -t | --type)
+      picked_types+=("$2")
+      shift
+      ;;
+    --no-color)
+      SYSZ_COLORS=0
+      ;;
+    -v | --version)
+      echo "$prog" $sysz_version
+      exit 0
+      ;;
+    --debug)
+      SYSZ_DEBUG=true
+      ;;
+    -V | --verbose)
+      SYSZ_VERBOSE=true
+      ;;
+    -h)
+      _sysz_short_help
+      exit 0
+      ;;
+    --help)
+      _sysz_help
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+    esac
+    shift
+  done
+
+  _sysz_check_states
+  _sysz_check_types
+
+  while [[ -n $1 ]]; do
+    case $1 in
+    _sysz*)
+      set -o xtrace
+      "$@"
+      _sysz_quit $?
+      ;;
+    h | help)
+      _sysz_help
+      exit 0
+      ;;
+    # Handle short names
+    re)
+      CMD=restart
+      ;;
+    s)
+      CMD=status
+      ;;
+    ed)
+      CMD=edit
+      ;;
+    en)
+      CMD=enable
+      ;;
+    d | dis)
+      CMD=disable
+      ;;
+    j)
+      CMD=journal
+      ;;
+    f)
+      CMD=follow
+      ;;
+    c)
+      CMD="cat"
+      ;;
+    --)
+      shift
+      args=("$@")
+      break
+      ;;
+    -*)
+      _sysz_color red "ERROR: Unknown option: $1" >&2
+      _sysz_short_help >&2
+      exit 1
+      ;;
+    *)
+      # assume the next argument is a command name
+      cmd=$1
+      ;;
+    esac
+    shift
+  done
+
+  _sysz_debug "cmd=$cmd"
+  _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
+
+  mkdir -p "$(dirname "$SYSZ_HISTORY")"
+  touch "$SYSZ_HISTORY" || _sysz_error "Unable to write to $SYSZ_HISTORY"
+
   declare -a results
   while :; do
     _sysz_prompt_units | readarray -t picks
@@ -950,6 +939,6 @@ _sysz_debug "picked_types=(${picked_types[*]})"
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
 _sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
-_sysz_main
+_sysz_main "$@"
 
 _sysz_quit
