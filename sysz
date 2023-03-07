@@ -45,7 +45,7 @@ export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
 export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
-declare cmd
+declare -a picked_cmds
 declare -a args
 declare exitcode=0
 declare -a picked_managers
@@ -125,7 +125,7 @@ function __values {
 
 function _sysz_short_help {
   cat <<EOF
-$prog [OPTS...] [CMD] [-- ARGS...]
+$prog [OPTS...] [CMD ...] [-- ARGS...]
 
 OPTS:
   -u, --user                  Only show --user units [default].
@@ -144,7 +144,7 @@ function _sysz_help {
   cat <<EOF
 $prog - interactive terminal UI for systemctl
 
-$prog [OPTS...] [CMD] [-- ARGS...]
+$prog [OPTS...] [CMD ...] [-- ARGS...]
 
 sudo is invoked automatically, if necessary.
 
@@ -861,28 +861,28 @@ function _sysz_main {
       ;;
     # Handle short names
     re)
-      CMD=restart
+      picked_cmds=(restart)
       ;;
     s)
-      CMD=status
+      picked_cmds+=(status)
       ;;
     ed)
-      CMD=edit
+      picked_cmds+=(edit)
       ;;
     en)
-      CMD=enable
+      picked_cmds+=(enable)
       ;;
     d | dis)
-      CMD=disable
+      picked_cmds+=(disable)
       ;;
     j)
-      CMD=journal
+      picked_cmds+=(journal)
       ;;
     f)
-      CMD=follow
+      picked_cmds+=(follow)
       ;;
     c)
-      CMD="cat"
+      picked_cmds+=(cat)
       ;;
     --)
       shift
@@ -890,19 +890,19 @@ function _sysz_main {
       break
       ;;
     -*)
-      _sysz_color red "ERROR: Unknown option: $1" >&2
+      _sysz_error "Unknown option: $1" >&2
       _sysz_short_help >&2
       exit 1
       ;;
     *)
       # assume the next argument is a command name
-      cmd=$1
+      picked_cmds+=("$1")
       ;;
     esac
     shift
   done
 
-  _sysz_debug "cmd=$cmd"
+  _sysz_debug "picked_cmds=(${picked_cmds[*]})"
   _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
 
   mkdir -p "$(dirname "$SYSZ_HISTORY")"
@@ -917,7 +917,6 @@ function _sysz_main {
     _sysz_handle_key "${picks[0]}" || break
   done
 
-  declare -p picks
   # results look like '[s] foo.service With a description'
   for result in "${results[@]:1}"; do
     _sysz_debug "result=$result"
