@@ -253,7 +253,7 @@ function _sysz_ctl {
   _sysz_verbose systemctl "$@"
 }
 
-function _sys_sudo_ctl {
+function _sysz_sudo_ctl {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
     _sysz_verbose sudo -E systemctl "$@" || exitcode=$?
@@ -321,22 +321,26 @@ function _sysz_color_unit {
   sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$reset"'\4,'
 }
 
+_sysz_clean() {
+  # remove all colors and control characters from stdin
+  sed -r "s/[[:cntrl:]]\[([0-9]{1,3};)*[0-9]{1,3}m//g"
+}
+
 function _sysz_ls {
   local color=$1
   shift
 
   for mgr in "${picked_managers[@]}"; do
-    _sysz_ctl \
+    _sysz_sudo_ctl \
       --"$mgr" \
       --no-legend \
       --full \
       --plain \
       --no-pager \
       --all \
-      "$@" | while read -r unit load active sub description; do
-      echo -n "[${mgr:0:1}] "
-      echo -en "$(_sysz_color "$color" "$unit")\t"
-      echo "$description"
+      list-units \
+      "$@" | _sysz_clean | while read unit load active sub description; do
+      echo -e "[${mgr:0:1}] $(_sysz_color "$color" "$unit") - $description"
     done
   done
 }
@@ -347,13 +351,6 @@ function _sysz_contains() {
   for e in "$@"; do [[ "$e" == "$match" ]] && return 0; done
   return 1
 }
-
-declare -ra bad_states=(
-  abandoned
-  bad
-  error
-  failed
-)
 
 function _sysz_units {
   # failed service
@@ -371,21 +368,30 @@ function _sysz_units {
   # remaining timer
   # remaining
   # templates
-  bad_state_args=()
-  for state in "${bad_states[@]}"; do
-    bad_state_args+=("--state=$state")
-  done
+  # declare -ra bad_states=(
+  #   abandoned
+  #   bad
+  #   error
+  #   failed
+  # )
 
-  other_state_args=()
-  systemctl --state=help | grep -v '^$' | grep -v ':' | grep -v 'ing' | sort -u | while read -r state; do
-    if ! _sysz_contains "$state" "${bad_states[@]}" || [[ $state = active ]]; then
-      other_state_args+=("--state=$state")
-    fi
-  done
+  declare -ra bad_state_args=(
+    "--state=abandoned"
+    "--state=bad"
+    "--state=error"
+    "--state=failed"
+  )
 
-  _sysz_ls red list-units --type=service --type=timer "${bad_state_args[@]}"
-  _sysz_ls green list-units --type=service --type=timer --state=active
-  _sysz_ls white list-units --type=service --type=timer --state=inactive
+  # other_state_args=()
+  # systemctl --state=help | grep -v '^$' | grep -v ':' | grep -v 'ing' | sort -u | while read -r state; do
+  #   if ! _sysz_contains "$state" "${bad_states[@]}" || [[ $state = active ]]; then
+  #     other_state_args+=("--state=$state")
+  #   fi
+  # done
+
+  _sysz_ls red --type=service --type=timer "${bad_state_args[@]}"
+  _sysz_ls green --type=service --type=timer --state=active
+  _sysz_ls reset --type=service --type=timer --state=inactive
   return 0
   # show all not-found units
   _sysz_ls list-units --state=not-found
@@ -475,7 +481,7 @@ function _sysz_daemon_reload_prompt {
   _sysz_debug "daemon-reload=${managers[*]}"
 
   for mgr in "${managers[@]}"; do
-    _sys_sudo_ctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || {
+    _sysz_sudo_ctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || {
       _sysz_error "daemon-reload failed"
       _sysz_quit 1
     }
@@ -732,11 +738,11 @@ function _sysz_handle_command {
   _sysz_debug "cmd=$cmd"
   case $cmd in
   edit)
-    _sys_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r pre_sum
-    _sys_sudo_ctl "$mgr" edit -- "$unit"
-    _sys_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r post_sum
+    _sysz_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r pre_sum
+    _sysz_sudo_ctl "$mgr" edit -- "$unit"
+    _sysz_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r post_sum
     if [[ $pre_sum != "$post_sum" ]]; then
-      _sys_sudo_ctl "$mgr" daemon-reload
+      _sysz_sudo_ctl "$mgr" daemon-reload
       _sysz_do_commands "$pick"
     fi
     ;;
@@ -748,14 +754,14 @@ function _sysz_handle_command {
     _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
     ;;
   status)
-    _sys_sudo_ctl "$mgr" "$cmd" --pager "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${ARGS[@]}" -- "$unit"
     ;;
   cat | show)
-    _sys_sudo_ctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
     ;;
   *)
-    _sys_sudo_ctl "$mgr" "$cmd" --no-block "${ARGS[@]}" -- "$unit"
-    _sys_sudo_ctl "$mgr" status --no-pager -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" status --no-pager -- "$unit"
     ;;
   esac
 }
