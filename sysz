@@ -788,6 +788,10 @@ function _sysz_main {
     _sysz_quit 1
   fi
 
+  _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
+  mkdir -p "$(dirname "$SYSZ_HISTORY")"
+  touch "$SYSZ_HISTORY" || _sysz_error "Unable to write to $SYSZ_HISTORY"
+
   # root does not have user units
   if [[ $EUID -eq 0 ]]; then
     picked_managers=(system)
@@ -795,6 +799,7 @@ function _sysz_main {
     picked_managers=(user system)
   fi
 
+  # TODO: combine these into one loop
   while [[ -n $1 ]]; do
     case $1 in
     -u | --user)
@@ -845,13 +850,10 @@ function _sysz_main {
     shift
   done
 
-  _sysz_check_states
-  _sysz_check_types
-
+  # TODO: combine these into one loop
   while [[ -n $1 ]]; do
     case $1 in
     _sysz*)
-      set -o xtrace
       "$@"
       _sysz_quit $?
       ;;
@@ -902,11 +904,13 @@ function _sysz_main {
     shift
   done
 
+  _sysz_debug "picked_managers=(${picked_managers[*]})"
   _sysz_debug "picked_cmds=(${picked_cmds[*]})"
-  _sysz_debug "SYSZ_HISTORY=$SYSZ_HISTORY"
-
-  mkdir -p "$(dirname "$SYSZ_HISTORY")"
-  touch "$SYSZ_HISTORY" || _sysz_error "Unable to write to $SYSZ_HISTORY"
+  _sysz_debug "picked_states=(${picked_states[*]})"
+  _sysz_debug "picked_types=(${picked_types[*]})"
+  _sysz_check_states
+  _sysz_check_types
+  _sysz_check_cmds
 
   declare -a results
   while :; do
@@ -932,9 +936,6 @@ function _sysz_main {
   fi
 }
 
-_sysz_debug "picked_managers=(${picked_managers[*]})"
-_sysz_debug "picked_states=(${picked_states[*]})"
-_sysz_debug "picked_types=(${picked_types[*]})"
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
 _sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
