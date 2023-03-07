@@ -15,17 +15,18 @@ shopt -s extdebug
 # constants
 declare -rx SHELL=bash
 declare -r MIN_FZF_VERSION=0.27.1
-declare -r prog
 prog=$(basename "$0")
-declare -r SYSZ_VERSION=2.0.0-beta
-declare -r debug_file
+declare -r prog
+declare -r sysz_version=2.0.0-beta
 debug_file=sysz.$(date -Iminutes).debug
+declare -r debug_file
 
 # variables
 EXITCODE=0
 
 # environment variables
-SYSZ_HISTORY=${SYSZ_HISTORY:-${XDG_CACHE_HOME:-$HOME/.cache}/sysz/history}
+XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
+SYSZ_HISTORY=${SYSZ_HISTORY:-$XDG_CACHE_HOME/sysz/history}
 case "$SYSZ_COLORS" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
   SYSZ_COLORS=0
@@ -43,27 +44,14 @@ esac
 
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 
-[[ $SYSZ_COLORS -eq 1 ]] && {
-  declare -rA COLORS=(
-    [reset]=$'\e[0m'
-    [red]=$'\e[31m'
-    [green]=$'\e[32m'
-    [yellow]=$'\e[33m'
-    [blue]=$'\e[34m'
-    [magenta]=$'\e[35m'
-    [cyan]=$'\e[36m'
-    [gray]=$'\e[37m'
-  )
-}
-
 # global variables
 declare VERBOSE
 declare DEBUG
 declare CMD
 declare -a ARGS
-declare -a MANAGERS
-declare -a STATES
-declare -a TYPES
+declare -a picked_managers
+declare -a picked_states
+declare -a picked_types
 
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
@@ -106,49 +94,15 @@ function __values {
   echo
 }
 
-# help
-readonly _sysz_title="sysz - interactive terminal UI for systemctl"
-readonly _sysz_usage="$prog [OPTS...] [CMD] [-- ARGS...]"
-
-! read -r -d '' _sysz_description <<EOM
-sudo is invoked automatically, if necessary.
-
-If only one unit is chosen, available commands will be presented
-based on the state of the unit (e.g. "start" only shows if unit is "active").
-EOM
-
-__add _sysz_opts "-u, --user" "Only show --user units [default]."
-__add _sysz_opts "--sys, --system" "Only show --system units [default]."
-__add _sysz_opts "-s STATE, --state STATE" "Only show units in STATE (repeatable)."
-__add _sysz_opts "-t TYPE, --type TYPE" "Only show units of TYPE (repeatable)."
-__add _sysz_opts "--no-color" "Disable colors."
-__add _sysz_opts "-V, --verbose" "Print the systemctl command."
-__add _sysz_opts "-v, --version" "Print the version."
-__add _sysz_opts "-h, --help" "Print this message."
-
-__add _sysz_keys "TAB" "Toggle selection."
-__add _sysz_keys "ctrl-r" "Run daemon-reload. Selection is reset."
-__add _sysz_keys "ctrl-x" "Switch between user and system managers. Selection is reset."
-__add _sysz_keys "ctrl-s" "Filter by states. Selection is reset."
-__add _sysz_keys "ctrl-t" "Filter by types. Selection is reset."
-__add _sysz_keys "ctrl-v" "'cat' the selected units in the preview window."
-__add _sysz_keys "ctrl-p" "History previous."
-__add _sysz_keys "ctrl-n" "History next."
-__add _sysz_keys "left|right" "Toggle word-wrapping in the preview window."
-__add _sysz_keys "shift-up" "Scroll up in the preview window."
-__add _sysz_keys "shift-down" "Scroll down in the preview window."
-__add _sysz_keys "?" "Show keybindings."
-
-__add _sysz_state_color active green
-__add _sysz_state_color failed red
-__add _sysz_state_color bad red
-__add _sysz_state_color masked magenta
-__add _sysz_state_color not-found yellow
-__add _sysz_state_color template blue
-__add _sysz_state_color other cyan
-
-__add _sysz_envvars "SYSZ_HISTORY" "Command history file [default: \$XDG_CACHE_HOME/sysz/history]."
-__add _sysz_envvars "SYSZ_COLORS" 'Turn colors on or off [default: on].'
+declare -a state_colors=(
+  [active]=green
+  [failed]=red
+  [bad]=red
+  [masked]=magenta
+  [not - found]=yellow
+  [template]=blue
+  [other]=cyan
+)
 
 # Data Structures
 #   Unit
@@ -161,62 +115,89 @@ __add _sysz_envvars "SYSZ_COLORS" 'Turn colors on or off [default: on].'
 #     CanReload
 #     Manager
 
-function __max_len {
-  local max=0
-  while read -r -d' ' str; do
-    if [[ $max -lt ${#str} ]]; then
-      max=${#str}
-    fi
-  done
-  echo "$max"
-}
+# function __max_len {
+#   local max=0
+#   while read -r -d' ' str; do
+#     if [[ $max -lt ${#str} ]]; then
+#       max=${#str}
+#     fi
+#   done
+#   echo "$max"
+# }
 
-function __print_table {
-  # shellcheck disable=SC2178
-  local -n map="$1_MAP"
-  local -n keys="$1_ORDER"
-  local max=0
+function _sysz_short_help {
+  cat <<EOF
+$prog [OPTS...] [CMD] [-- ARGS...]
 
-  for key in "${keys[@]}"; do
-    if [[ $max -lt ${#key} ]]; then
-      max=${#key}
-    fi
-  done
-
-  max=$((max + 5))
-
-  for key in "${keys[@]}"; do
-    key_len=${#key}
-    printf "%s%*s%s\n" "$key" $((max - key_len)) ' ' "${map[$key]}"
-    [[ $key = "left|right" ]] && {
-      printf "%*s%s\n" "$max" ' ' "Note: fzf does not support horizontal scrolling."
-    }
-  done
+OPTS:
+  -u, --user                  Only show --user units [default].
+  --sys, --system             Only show --system units [default].
+  -s STATE, --state STATE     Only show units in STATE (repeatable).
+  -t TYPE, --type TYPE        Only show units of TYPE (repeatable).
+  --no-color                  Disable colors.
+  -V, --verbose               Print the systemctl command.
+  -v, --version               Print the version.
+  -h                          Print this message.
+  --help                      Print full help message.
+EOF
 }
 
 function _sysz_help {
-  # dynamically generate help message
   cat <<EOF
-$_sysz_title
+$prog - interactive terminal UI for systemctl
 
-$_sysz_usage
+$prog [OPTS...] [CMD] [-- ARGS...]
 
-$_sysz_description
+sudo is invoked automatically, if necessary.
+
+If only one unit is chosen, available commands will be presented
+based on the state of the unit (e.g. "start" only shows if unit is "active").
 
 OPTS:
-$(__print_table _sysz_opts | sed 's/^/  /')
+  -u, --user                  Only show --user units [default].
+  --sys, --system             Only show --system units [default].
+  -s STATE, --state STATE     Only show units in STATE (repeatable).
+  -t TYPE, --type TYPE        Only show units of TYPE (repeatable).
+  --no-color                  Disable colors.
+  -V, --verbose               Print the systemctl command.
+  -v, --version               Print the version.
+  -h, --help                  Print this message.
 
 ARGS are passed to the systemctl command for each selected unit.
 
 Keybindings:
-$(__print_table _sysz_keys | sed 's/^/  /')
+  TAB            Toggle selection.
+  ctrl-r         Run daemon-reload. Selection is reset.
+  ctrl-x         Switch between user and system managers. Selection is reset.
+  ctrl-s         Filter by states. Selection is reset.
+  ctrl-t         Filter by types. Selection is reset.
+  ctrl-v         'cat' the selected units in the preview window.
+  ctrl-p         History previous.
+  ctrl-n         History next.
+  left|right     Toggle word-wrapping in the preview window.
+                 Note: fzf does not support horizontal scrolling.
+  shift-up       Scroll up in the preview window.
+  shift-down     Scroll down in the preview window.
+  ?              Show keybindings.
 
 Environment Variables:
-$(__print_table _sysz_envvars | sed 's/^/  /' | sed "s|\$XDG_CACHE_HOME|$XDG_CACHE_HOME|")
+  SYSZ_HISTORY     Command history file [default: $XDG_CACHE_HOME/sysz/history].
+  SYSZ_COLORS      Turn colors on or off [default: on].
 
+EOF
+  [[ $SYSZ_COLORS -eq 1 ]] && cat <<EOF
 Units are colored based on their state:
-$(__print_table _sysz_state_color)
+  $(_sysz_color green "active        green")
+  $(_sysz_color red "failed        red")
+  $(_sysz_color red "bad           red")
+  $(_sysz_color magenta "masked        magenta")
+  $(_sysz_color yellow "not-found     yellow")
+  $(_sysz_color blue "template      blue")
+  $(_sysz_color cyan "other         cyan")
 
+EOF
+
+  cat <<EOF
 Examples:
   $prog -u                             User units.
   $prog --sys -s active                Active system units.
@@ -227,23 +208,6 @@ EOF
 
 }
 
-# dynamically generate sysz help window
-! read -r -d '' _sysz_fzf_help <<EOM
-Keybindings:
-$(__print_table _sysz_keys)
-
-$([[ $SYSZ_COLORS = 1 ]] && {
-  echo "States:"
-  for state in $(__keys _sysz_state_colors); do
-    color=$(__get _sysz_state_colors "$state")
-    echo "  ${COLORS[$color]}$state${COLORS[reset]}"
-  done
-})
-
-FZF Query Syntax:
-  TODO
-EOM
-
 function _sysz_quit {
   local code=${1:-$exitcode}
   _sysz_debug "quit=$code"
@@ -251,14 +215,27 @@ function _sysz_quit {
   exit "$code"
 }
 
-function _sysz_colorize {
+function _sysz_color {
   local color=$1
-  echo -e "${COLOR[$color]}$*${COLOR[reset]}"
+  shift
+  [[ $SYSZ_COLORS -eq 1 ]] && {
+    declare -rA colors=(
+      [reset]=$'\e[0m'
+      [red]=$'\e[31m'
+      [green]=$'\e[32m'
+      [yellow]=$'\e[33m'
+      [blue]=$'\e[34m'
+      [magenta]=$'\e[35m'
+      [cyan]=$'\e[36m'
+      [gray]=$'\e[37m'
+    )
+  }
+  echo -e "${colors[$color]}$*${colors[reset]}"
 }
 
 function _sysz_error {
   _sysz_debug "ERROR: $*"
-  _sysz_colorize red "ERROR: $*" >&2
+  _sysz_color red "ERROR: $*" >&2
   _sysz_quit 1
 }
 
@@ -275,8 +252,8 @@ function _sysz_verbose {
   _sysz_debug "> $*"
   "$@"
   code=$?
-  [[ $VERBOSE = true && $code != 0 ]] && _sysz_colorize red "ERROR: Failed: $*" >&2
-  return $code
+  [[ $VERBOSE = true && $code != 0 ]] && _sysz_color red "ERROR: Failed: $*" >&2
+  return "$code"
 }
 
 function _sysz_systemctl {
@@ -339,7 +316,8 @@ function _sysz_show {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
-function _sysz_colorize_unit {
+function _sysz_color_unit {
+  # FIXME: use a data structure instead of parsing the unit name
   local color=$1
   # only add color to the unit name, not the [u]/[s] or description
   # also cut out the extra info in the middle
@@ -347,123 +325,82 @@ function _sysz_colorize_unit {
 }
 
 function _sysz_ls {
-  local color=cyan
-  local filter=DO_NOT_MATCH
-  local state=
-  local verb=list-units
+  local color=$1
+  shift
 
-  args=()
-  for arg in "$@"; do
-    case $arg in
-    --verb=*)
-      verb=${arg#--verb=} # strip --verb=
-      continue
-      ;;
-    --filter=*)
-      filter=${arg#--filter=} # strip --filter=
-      continue
-      ;;
-    --state=*)
-      state=${arg#--state=} # strip --state=
-      color=$(__get _sysz_state_colors "${arg#--state=}")
-      _sysz_debug "color=$color"
-      [[ $state =~ masked|bad ]] && verb=list-unit-files
-      ;;
-    esac
-    args+=("$arg")
-  done
-
-  for mgr in "${MANAGERS[@]}"; do
+  for mgr in "${picked_managers[@]}"; do
     _sysz_ctl \
-      "$verb" \
-      "$(_sysz_mgr "$mgr")" \
-      --legend=false \
+      --"$mgr" \
+      --no-legend \
       --full \
       --plain \
       --no-pager \
       --all \
-      "${args[@]}" |
-      grep -Ev '^\S+\s+(\S+\s+)?('"$filter"')' |
-      sed -Ee 's/ +/ /g;' |
-      _sysz_colorize_unit "${!color}" |
-      sed -e "s/^/[${mgr:0:1}] /" || :
+      "$@" | while read -r unit load active sub description; do
+      echo -n "[${mgr:0:1}] "
+      echo -en "$(_sysz_color "$color" "$unit")\t"
+      echo "$description"
+    done
   done
 }
 
+function _sysz_contains() {
+  local e match="$1"
+  shift
+  for e in "$@"; do [[ "$e" == "$match" ]] && return 0; done
+  return 1
+}
+
+declare -ra bad_states=(
+  abandoned
+  bad
+  error
+  failed
+)
+
 function _sysz_units {
-  _sysz_debug "_sysz_units"
-  _sysz_debug "STATES=${STATES[*]}"
-  _sysz_debug "TYPES=${TYPES[*]}"
-  if [[ ${#STATES[@]} -gt 0 && ${#TYPES[@]} -gt 0 ]]; then
-    for cmd in list-units list-unit-files; do
-      for state in "${STATES[@]}"; do
-        for unit_type in "${TYPES[@]}"; do
-          _sysz_ls "$cmd" "--state=$state" "--type=$unit_type"
-        done
-      done
-    done
+  # failed service
+  # failed timer
+  # failed units
+  # bad service
+  # bad timer
+  # bad units
+  # active service
+  # active timer
+  # active units
+  # masked
+  # not-found
+  # remaining service
+  # remaining timer
+  # remaining
+  # templates
+  bad_state_args=()
+  for state in "${bad_states[@]}"; do
+    bad_state_args+=("--state=$state")
+  done
 
-  elif [[ ${#STATES[@]} -gt 0 ]]; then
-    for cmd in list-units list-unit-files; do
-      for state in "${STATES[@]}"; do
-        for unit_type in service timer; do
-          _sysz_ls "$cmd" "--state=$state" "--type=$unit_type"
-        done
-        _sysz_ls "$cmd" "--state=$state" |
-          grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
-      done
-    done
+  other_state_args=()
+  systemctl --state=help | grep -v '^$' | grep -v ':' | grep -v 'ing' | sort -u | while read -r state; do
+    if ! _sysz_contains "$state" "${bad_states[@]}" || [[ $state = active ]]; then
+      other_state_args+=("--state=$state")
+    fi
+  done
 
-  elif [[ ${#TYPES[@]} -gt 0 ]]; then
-    for unit_type in "${TYPES[@]}"; do
-      if [[ $unit_type = template ]]; then
-        _sysz_ls list-unit-files '*@.*'
-        continue
-      fi
-      for state in failed active not-found; do
-        _sysz_ls list-units "--state=$state" "--type=$unit_type"
-      done
-      _sysz_ls "--filter=failed|active|not-found" list-units "--type=$unit_type"
-    done
-
-  else
-    # failed service
-    # failed timer
-    # failed units
-    # bad service
-    # bad timer
-    # bad units
-    # active service
-    # active timer
-    # active units
-    # masked
-    # not-found
-    # remaining service
-    # remaining timer
-    # remaining
-    # templates
-    _sysz_ls list-units --state=failed --type=service
-    _sysz_ls list-units --state=failed --type=timer
-    _sysz_ls list-units --state=failed |
-      grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
-    _sysz_ls list-unit-files --state=bad
-    _sysz_ls --state=active --type=service
-    _sysz_ls --state=active --type=timer
-    _sysz_ls --state=active |
-      grep -Ev '^\[\S+\] \S+(\.service|\.timer)'
-    # show all not-found units
-    _sysz_ls --state=not-found
-    # show remaining services
-    _sysz_ls '--filter=failed|active|not-found' --type=service
-    # show remaining timers
-    _sysz_ls '--filter=failed|active|not-found' --type=timer
-    # show all remaining units
-    _sysz_ls '--filter=failed|active|not-found' |
-      grep -Ev '^\[\S+\] \S+(\.service|\.timer)' || :
-    # show all templates
-    _sysz_ls --verb=list-unit-files | grep -E '@\.'
-    _sysz_ls --verb=list-unit-files '*@.*'
-  fi
+  _sysz_ls red list-units --type=service --type=timer "${bad_state_args[@]}"
+  _sysz_ls green list-units --type=service --type=timer --state=active
+  _sysz_ls white list-units --type=service --type=timer --state=inactive
+  exit 0
+  # show all not-found units
+  _sysz_ls list-units --state=not-found
+  # show remaining services
+  _sysz_ls list-units '--exclude=failed|active|not-found' --type=service
+  # show remaining timers
+  _sysz_ls list-units '--exclude=failed|active|not-found' --type=timer
+  # show all remaining units
+  _sysz_ls list-units '--exclude=failed|active|not-found' --type=other
+  # show all templates
+  _sysz_ls list-unit-files | grep -E '@\.'
+  _sysz_ls list-unit-files '*@.*'
 }
 
 # main
@@ -476,37 +413,37 @@ fi
 
 # root does not have user units
 if [[ $EUID -eq 0 ]]; then
-  MANAGERS=(system)
+  picked_managers=(system)
 else
-  MANAGERS=(user system)
+  picked_managers=(user system)
 fi
 
 while [[ -n $1 ]]; do
   case $1 in
   -u | --user)
-    MANAGERS=(user)
+    picked_managers=(user)
     shift
     ;;
   --sys | --system)
-    MANAGERS=(system)
+    picked_managers=(system)
     shift
     ;;
   -s | --state)
-    STATES+=("$2")
+    picked_states+=("$2")
     shift
     shift
     ;;
   --state=*)
-    STATES+=("${1#--state=}")
+    picked_states+=("${1#--state=}")
     shift
     ;;
   -t | --type)
-    TYPES+=("$2")
+    picked_types+=("$2")
     shift
     shift
     ;;
   --type=*)
-    TYPES+=("${1#--type=}")
+    picked_types+=("${1#--type=}")
     shift
     ;;
   --no-color)
@@ -514,7 +451,7 @@ while [[ -n $1 ]]; do
     shift
     ;;
   -v | --version)
-    echo "$PROG" $SYSZ_VERSION
+    echo "$prog" $sysz_version
     exit 0
     ;;
   --debug)
@@ -525,7 +462,11 @@ while [[ -n $1 ]]; do
     VERBOSE=true
     shift
     ;;
-  -h | --help)
+  -h)
+    _sysz_short_help
+    exit 0
+    ;;
+  --help)
     _sysz_help
     exit 0
     ;;
@@ -535,14 +476,14 @@ while [[ -n $1 ]]; do
   esac
 done
 
-_sysz_debug "MANAGERS=(${MANAGERS[*]})"
-_sysz_debug "STATES=(${STATES[*]})"
-_sysz_debug "TYPES=(${TYPES[*]})"
+_sysz_debug "picked_managers=(${picked_managers[*]})"
+_sysz_debug "picked_states=(${picked_states[*]})"
+_sysz_debug "picked_types=(${picked_types[*]})"
 _sysz_debug "VERBOSE=$VERBOSE"
 _sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
 function _sysz_check_states {
-  for state in "${STATES[@]}"; do
+  for state in "${picked_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
       _sysz_error "Invalid state: $state"
@@ -551,7 +492,7 @@ function _sysz_check_states {
 }
 
 function _sysz_check_types {
-  for unit_type in "${TYPES[@]}"; do
+  for unit_type in "${picked_types[@]}"; do
     _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
@@ -583,19 +524,11 @@ _sysz_check_types
 
 while [[ -n $1 ]]; do
   case $1 in
-  _sysz_fzf_preview)
+  _*)
+    cmd=$1
     shift
-    _sysz_fzf_preview "$@"
-    exit 0
-    ;;
-  _sysz_fzf_cat)
-    shift
-    _sysz_fzf_cat "$@"
-    exit 0
-    ;;
-  _sysz_units)
-    _sysz_units
-    exit 0
+    "$cmd" "$@"
+    exit $?
     ;;
   h | help)
     _sysz_help
@@ -632,14 +565,8 @@ while [[ -n $1 ]]; do
     break
     ;;
   -*)
-    __red "ERROR: Unknown option: $1" >&2
-    cat <<EOF >&2
-Usage:
-  $_sysz_usage
-
-Options:
-$(__print_table _sysz_opts | sed 's/^/  /')
-EOF
+    _sysz_color red "ERROR: Unknown option: $1" >&2
+    _sysz_short_help >&2
     exit 1
     ;;
   *)
@@ -670,9 +597,9 @@ function _sysz_mgr_prompt {
       --multi \
       --no-info \
       --prompt="Manager: " |
-    readarray -t MANAGERS || _sysz_quit $?
+    readarray -t picked_managers || _sysz_quit $?
 
-  _sysz_debug "MANAGERS=${MANAGERS[*]}"
+  _sysz_debug "picked_managers=${picked_managers[*]}"
 }
 
 function _sysz_daemon_reload_prompt {
@@ -697,8 +624,23 @@ function _sysz_daemon_reload_prompt {
 }
 
 function _sysz_ls_states {
+  local prefered=(
+    failed
+    active
+    inactive
+    masked
+    not-found
+    enabled
+    disabled
+    exited
+    bad
+    error
+  )
   echo '(all)'
   printf '%s\n' "${prefered[@]}"
+
+  # hide 'ing' because they are transient states
+  # which people probably aren't looking for
   systemctl --state=help |
     grep -v ':' |
     grep -v 'ing' |
@@ -712,36 +654,20 @@ function _sysz_ls_states {
 
 function _sysz_states_prompt {
   local picked
-  # hide 'ing' because they are transient states
-  # which people probably aren't looking for
-  prefered=(
-    failed
-    active
-    inactive
-    masked
-    not-found
-    enabled
-    disabled
-    exited
-    bad
-    error
-  )
   _sysz_ls_states |
     _sysz_fzf \
       --multi \
       --no-sort \
       --prompt="States: " |
-    readarray -t picked || _sysz_quit $?
+    readarray -t picked_states || _sysz_quit $?
 
-  _sysz_debug "States=${picked[*]}"
+  _sysz_debug "Picked states: ${picked_states[*]}"
 
-  STATES=()
-  for state in "${picked[@]}"; do
+  for state in "${picked_states[@]}"; do
     if [[ $state = '(all)' ]]; then
-      STATES=()
+      pciked_states=()
       return
     fi
-    STATES+=("$state")
   done
   _sysz_check_states
 }
@@ -765,17 +691,15 @@ function _sysz_types_prompt {
       --multi \
       --no-sort \
       --prompt="Types: " |
-    readarray -t picked || _sysz_quit $?
+    readarray -t picked_types || _sysz_quit $?
 
-  _sysz_debug "Types=${picked[*]}"
+  _sysz_debug "Picked types: ${picked_types[*]}"
 
-  TYPES=()
-  for type in "${picked[@]}"; do
+  for type in "${picked_types[@]}"; do
     if [[ $type = '(all)' ]]; then
-      TYPES=()
+      picked_types=()
       return
     fi
-    TYPES+=("$type")
   done
   _sysz_check_types
 }
@@ -932,30 +856,6 @@ function _sysz_handle_key {
   return 1
 }
 
-declare -a results
-while :; do
-  _sysz_prompt_units | readarray -t picks
-  _sysz_debug "picks=${picks[*]:1}"
-
-  # The first result from fzf is always the key
-  _sysz_handle_key "${picks[0]}" || break
-done
-
-declare -p picks
-# results look like '[s] foo.service With a description'
-for result in "${results[@]:1}"; do
-  _sysz_debug "result=$result"
-  # read the first 2 words and throw away the rest
-  IFS=" " read -r -a words <<<"$result"
-  _sysz_debug "words=${words[*]}"
-  # picks are of the form: [s] foo.service
-  picks+=("${words[0]} ${words[1]}")
-done
-
-if [[ ${#picks[@]} -eq 0 ]]; then
-  _sysz_quit 1
-fi
-
 function _sysz_handle_command {
   local pick=$1
   local cmd=$2
@@ -1020,6 +920,32 @@ function _sysz_do_commands {
       _sysz_handle_command "$pick" "$cmd"
     done
   done
+}
+
+function _sysz_main {
+  declare -a results
+  while :; do
+    _sysz_prompt_units | readarray -t picks
+    _sysz_debug "picks=${picks[*]:1}"
+
+    # The first result from fzf is always the key
+    _sysz_handle_key "${picks[0]}" || break
+  done
+
+  declare -p picks
+  # results look like '[s] foo.service With a description'
+  for result in "${results[@]:1}"; do
+    _sysz_debug "result=$result"
+    # read the first 2 words and throw away the rest
+    IFS=" " read -r -a words <<<"$result"
+    _sysz_debug "words=${words[*]}"
+    # picks are of the form: [s] foo.service
+    picks+=("${words[0]} ${words[1]}")
+  done
+
+  if [[ ${#picks[@]} -eq 0 ]]; then
+    _sysz_quit 1
+  fi
 }
 
 _sysz_quit
