@@ -22,36 +22,65 @@ debug_file=sysz.$(date -Iminutes).debug
 declare -r debug_file
 
 # variables
-EXITCODE=0
 
 # environment variables
-XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
-SYSZ_HISTORY=${SYSZ_HISTORY:-$XDG_CACHE_HOME/sysz/history}
+export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
+export SYSZ_HISTORY=${SYSZ_HISTORY:-$XDG_CACHE_HOME/sysz/history}
 case "$SYSZ_COLORS" in
 [nN][oO] | [oO][fF][fF] | [fF][aA][lL][sS][eE] | 0)
-  SYSZ_COLORS=0
+  export SYSZ_COLORS=0
   ;;
 *)
   ncolors=$(tput colors)
 
   if [[ -n $ncolors && $ncolors -ge 8 ]]; then
-    SYSZ_COLORS=1
+    export SYSZ_COLORS=1
   else
-    SYSZ_COLORS=0
+    export SYSZ_COLORS=0
   fi
   ;;
 esac
-
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
+export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
+export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
-declare VERBOSE
-declare DEBUG
-declare CMD
-declare -a ARGS
+declare cmd
+declare -a args
+declare exitcode=0
 declare -a picked_managers
 declare -a picked_states
 declare -a picked_types
+declare -a state_colors=(
+  [active]=green
+  [failed]=red
+  [bad]=red
+  [masked]=magenta
+  [not - found]=yellow
+  [template]=blue
+  [other]=cyan
+)
+
+# Data Structures
+#   Unit
+#     Type
+#     Name
+#     Description
+#     LoadState
+#     ActiveState
+#     UnitFileState
+#     CanReload
+#     Manager
+
+function __max_len {
+  local max=0
+  while read -r -d' ' str; do
+    if [[ $max -lt ${#str} ]]; then
+      max=${#str}
+    fi
+  done
+  echo "$max"
+}
 
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
@@ -93,37 +122,6 @@ function __values {
   done
   echo
 }
-
-declare -a state_colors=(
-  [active]=green
-  [failed]=red
-  [bad]=red
-  [masked]=magenta
-  [not - found]=yellow
-  [template]=blue
-  [other]=cyan
-)
-
-# Data Structures
-#   Unit
-#     Type
-#     Name
-#     Description
-#     LoadState
-#     ActiveState
-#     UnitFileState
-#     CanReload
-#     Manager
-
-# function __max_len {
-#   local max=0
-#   while read -r -d' ' str; do
-#     if [[ $max -lt ${#str} ]]; then
-#       max=${#str}
-#     fi
-#   done
-#   echo "$max"
-# }
 
 function _sysz_short_help {
   cat <<EOF
@@ -211,7 +209,7 @@ EOF
 function _sysz_quit {
   local code=${1:-$exitcode}
   _sysz_debug "quit=$code"
-  [[ $DEBUG = true ]] && cat "$debug_file" >&2
+  [[ $SYSZ_DEBUG = true ]] && cat "$debug_file" >&2
   exit "$code"
 }
 
@@ -240,7 +238,7 @@ function _sysz_error {
 }
 
 function _sysz_debug {
-  [[ $DEBUG = true ]] && echo "$(date -Isec): $*" >>"$debug_file"
+  [[ $SYSZ_DEBUG = true ]] && echo "$(date -Isec): $*" >>"$debug_file"
 }
 
 function _sysz_ctl {
@@ -248,7 +246,7 @@ function _sysz_ctl {
 }
 
 function _sysz_verbose {
-  [[ $VERBOSE = true ]] && echo '>' "$@" >&2
+  [[ $SYSZ_VERBOSE = true ]] && echo "> $*" >&2
   _sysz_debug "> $*"
   "$@"
   code=$?
@@ -268,13 +266,13 @@ function _sysz_systemctl {
 function _sysz_journalctl {
   if [[ $1 = --user ]]; then
     # use --user-unit flag if it's a user unit
-    _sysz_verbose journalctl --user-unit="$2" "${@:3}" || EXITCODE=$?
+    _sysz_verbose journalctl --user-unit="$2" "${@:3}" || exitcode=$?
   else
     if [[ $EUID -ne 0 ]]; then
       # only run sudo if we aren't root
-      _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" journalctl --unit="$2" "${@:3}" || EXITCODE=$?
+      _sysz_verbose sudo SYSTEMD_COLORS="$SYSTEMD_COLORS" journalctl --unit="$2" "${@:3}" || exitcode=$?
     else
-      _sysz_verbose journalctl --unit="$2" "${@:3}" || EXITCODE=$?
+      _sysz_verbose journalctl --unit="$2" "${@:3}" || exitcode=$?
     fi
   fi
 }
@@ -455,11 +453,11 @@ while [[ -n $1 ]]; do
     exit 0
     ;;
   --debug)
-    DEBUG=true
+    SYSZ_DEBUG=true
     shift
     ;;
   -V | --verbose)
-    VERBOSE=true
+    SYSZ_VERBOSE=true
     shift
     ;;
   -h)
@@ -475,12 +473,6 @@ while [[ -n $1 ]]; do
     ;;
   esac
 done
-
-_sysz_debug "picked_managers=(${picked_managers[*]})"
-_sysz_debug "picked_states=(${picked_states[*]})"
-_sysz_debug "picked_types=(${picked_types[*]})"
-_sysz_debug "VERBOSE=$VERBOSE"
-_sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
 function _sysz_check_states {
   for state in "${picked_states[@]}"; do
@@ -734,11 +726,6 @@ function _sysz_cmd {
   fi
 }
 
-declare key
-declare multi
-declare -a picks
-declare -a cmds
-
 function _sysz_prompt_units {
   _sysz_units |
     _sysz_fzf \
@@ -947,5 +934,13 @@ function _sysz_main {
     _sysz_quit 1
   fi
 }
+
+_sysz_debug "picked_managers=(${picked_managers[*]})"
+_sysz_debug "picked_states=(${picked_states[*]})"
+_sysz_debug "picked_types=(${picked_types[*]})"
+_sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
+_sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
+
+_sysz_main
 
 _sysz_quit
