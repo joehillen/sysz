@@ -41,6 +41,29 @@ case "$SYSZ_COLORS" in
   ;;
 esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
+if [[ $SYSZ_COLORS -eq 1 ]]; then
+  declare -rA colors=(
+    [reset]=$'\e[0m'
+    [red]=$'\e[31m'
+    [green]=$'\e[32m'
+    [yellow]=$'\e[33m'
+    [blue]=$'\e[34m'
+    [magenta]=$'\e[35m'
+    [cyan]=$'\e[36m'
+    [gray]=$'\e[37m'
+  )
+else
+  declare -rA colors=(
+    [reset]=''
+    [red]=''
+    [green]=''
+    [yellow]=''
+    [blue]=''
+    [magenta]=''
+    [cyan]=''
+    [gray]=''
+  )
+fi
 export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
 export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
@@ -51,15 +74,6 @@ declare exitcode=0
 declare -a picked_managers
 declare -a picked_states
 declare -a picked_types
-declare -a state_colors=(
-  [active]=green
-  [failed]=red
-  [bad]=red
-  [masked]=magenta
-  [not - found]=yellow
-  [template]=blue
-  [other]=cyan
-)
 
 # Data Structures
 #   Unit
@@ -185,13 +199,11 @@ Environment Variables:
 EOF
   [[ $SYSZ_COLORS -eq 1 ]] && cat <<EOF
 Units are colored based on their state:
-  $(_sysz_color green "active        green")
   $(_sysz_color red "failed        red")
-  $(_sysz_color red "bad           red")
-  $(_sysz_color magenta "masked        magenta")
+  $(_sysz_color green "active        green")
   $(_sysz_color yellow "not-found     yellow")
-  $(_sysz_color blue "template      blue")
-  $(_sysz_color cyan "other         cyan")
+  $(_sysz_color magenta "masked        magenta")
+  $(_sysz_color cyan "template      blue")
 
 EOF
 
@@ -216,19 +228,9 @@ function _sysz_quit {
 function _sysz_color {
   local color=$1
   shift
-  [[ $SYSZ_COLORS -eq 1 ]] && {
-    declare -rA colors=(
-      [reset]=$'\e[0m'
-      [red]=$'\e[31m'
-      [green]=$'\e[32m'
-      [yellow]=$'\e[33m'
-      [blue]=$'\e[34m'
-      [magenta]=$'\e[35m'
-      [cyan]=$'\e[36m'
-      [gray]=$'\e[37m'
-    )
-  }
-  echo -e "${colors[$color]}$*${colors[reset]}"
+  echo -en "${colors[$color]}"
+  echo -n "$*"
+  echo -e "${colors[reset]}"
 }
 
 function _sysz_error {
@@ -323,12 +325,14 @@ function _sysz_color_unit {
 
 _sysz_clean() {
   # remove all colors and control characters from stdin
-  sed -r "s/[[:cntrl:]]\[([0-9]{1,3};)*[0-9]{1,3}m//g"
+  sed -e 's/\x1b\[[0-9;]*m//g'
 }
 
 function _sysz_ls {
   local color=$1
   shift
+  local inactive
+  [[ $* = *"--state=inactive"* ]] && inactive=true
 
   for mgr in "${picked_managers[@]}"; do
     _sysz_sudo_ctl \
@@ -338,9 +342,24 @@ function _sysz_ls {
       --plain \
       --no-pager \
       --all \
-      list-units \
-      "$@" | _sysz_clean | while read unit load active sub description; do
-      echo -e "[${mgr:0:1}] $(_sysz_color "$color" "$unit") - $description"
+      "$@" | _sysz_clean | while read -r unit load active sub description; do
+      if [[ $inactive && $load = not-found ]]; then
+        # don't include "not-found" when showing inactive units
+        continue
+      fi
+      # echo "args=$*"
+      # echo "unit=$unit"
+      # echo "mgr=$mgr"
+      # echo "load=$load"
+      # echo "active=$active"
+      # echo "sub=$sub"
+      # echo "description=$description"
+      echo -n "[${mgr:0:1}] "
+      echo -en "${colors[$color]}"
+      echo -n "$unit"
+      echo -en "${colors[reset]}"
+      [[ $description ]] && echo -n " - $description"
+      echo
     done
   done
 }
@@ -352,7 +371,7 @@ function _sysz_contains() {
   return 1
 }
 
-function _sysz_units {
+function _sysz_all_units {
   # failed service
   # failed timer
   # failed units
@@ -375,35 +394,38 @@ function _sysz_units {
   #   failed
   # )
 
-  declare -ra bad_state_args=(
-    "--state=abandoned"
-    "--state=bad"
-    "--state=error"
-    "--state=failed"
-  )
+  systemctl --type=help | grep -Ev ':|service|timer' | sed 's/^/--type=/' | readarray -t other_types
 
-  # other_state_args=()
-  # systemctl --state=help | grep -v '^$' | grep -v ':' | grep -v 'ing' | sort -u | while read -r state; do
-  #   if ! _sysz_contains "$state" "${bad_states[@]}" || [[ $state = active ]]; then
-  #     other_state_args+=("--state=$state")
-  #   fi
-  # done
+  # failed
+  _sysz_ls red list-units --failed
 
-  _sysz_ls red --type=service --type=timer "${bad_state_args[@]}"
-  _sysz_ls green --type=service --type=timer --state=active
-  _sysz_ls reset --type=service --type=timer --state=inactive
-  return 0
-  # show all not-found units
-  _sysz_ls list-units --state=not-found
-  # show remaining services
-  _sysz_ls list-units '--exclude=failed|active|not-found' --type=service
-  # show remaining timers
-  _sysz_ls list-units '--exclude=failed|active|not-found' --type=timer
-  # show all remaining units
-  _sysz_ls list-units '--exclude=failed|active|not-found' --type=other
-  # show all templates
-  _sysz_ls list-unit-files | grep -E '@\.'
-  _sysz_ls list-unit-files '*@.*'
+  # active services and timers
+  _sysz_ls green list-units --type=service --type=timer --state=active
+
+  # other active units
+  _sysz_ls green list-units --state=active "${other_types[@]}"
+
+  # inactive services and timers
+  _sysz_ls reset list-units --type=service --type=timer --state=inactive
+
+  # other inactive units
+  _sysz_ls reset list-units --state=inactive "${other_types[@]}"
+
+  # not found
+  _sysz_ls yellow list-units --state=not-found
+
+  # masked
+  _sysz_ls magenta list-units --state=masked
+
+  # templates
+  _sysz_ls cyan list-unit-files '*@.*'
+
+  # everything from list-unit-files that isn't in list-units or a template
+  for mgr in "${picked_managers[@]}"; do
+    cmd="_sysz_sudo_ctl --plain --no-pager --no-legend --full --all --$mgr"
+    comm -13 <($cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
+      <($cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | sed "s/^/[${mgr:0:1}] /"
+  done
 }
 
 function _sysz_check_states {
@@ -505,7 +527,7 @@ function _sysz_ls_states {
   printf '%s\n' "${prefered[@]}"
 
   # hide 'ing' because they are transient states
-  # which people probably aren't looking for
+  # which you probably aren't looking for
   systemctl --state=help |
     grep -v ':' |
     grep -v 'ing' |
@@ -529,7 +551,7 @@ function _sysz_states_prompt {
 
   for state in "${picked_states[@]}"; do
     if [[ $state = '(all)' ]]; then
-      pciked_states=()
+      picked_states=()
       return
     fi
   done
@@ -541,8 +563,7 @@ function _sysz_ls_types {
   echo service
   echo timer
   systemctl --type=help |
-    grep -v ':' |
-    grep -Ev '(service|timer)' |
+    grep -Ev ':|service|timer' |
     sort -u |
     grep -v '^$'
   echo template
@@ -599,7 +620,7 @@ function _sysz_cmd {
 }
 
 function _sysz_prompt_units {
-  _sysz_units |
+  _sysz_all_units |
     _sysz_fzf \
       --multi \
       --tiebreak=begin,end,index \
