@@ -43,6 +43,7 @@ esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 if [[ $SYSZ_COLORS -eq 1 ]]; then
   declare -rA colors=(
+    [none]=''
     [reset]=$'\e[0m'
     [red]=$'\e[31m'
     [green]=$'\e[32m'
@@ -54,6 +55,7 @@ if [[ $SYSZ_COLORS -eq 1 ]]; then
   )
 else
   declare -rA colors=(
+    [none]=''
     [reset]=''
     [red]=''
     [green]=''
@@ -400,10 +402,10 @@ function _sysz_all_units() {
   _sysz_ls green list-units "${other_types[@]}" "${active_states[@]}"
 
   # inactive services and timers
-  _sysz_ls reset list-units --type=service --type=timer --state=inactive
+  _sysz_ls none list-units --type=service --type=timer --state=inactive
 
   # other inactive units
-  _sysz_ls reset list-units "${other_types[@]}" --state=inactive
+  _sysz_ls none list-units "${other_types[@]}" --state=inactive
 
   # not found
   _sysz_ls yellow list-units --state=not-found
