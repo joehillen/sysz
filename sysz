@@ -139,7 +139,7 @@ function __values() {
 
 function _sysz_short_help() {
   cat <<EOF
-$sysz_prog [OPTS...] [CMD ...] [-- ARGS...]
+$sysz_prog [OPTS...] [CMD...] [-- ARGS...]
 
 OPTS:
   -u, --user                  Only show --user units [default].
@@ -154,11 +154,30 @@ OPTS:
 EOF
 }
 
+_sysz_print_keybindings() {
+  cat <<EOF
+Keybindings:
+  TAB            Toggle selection.
+  ctrl-r         Run daemon-reload. Selection is reset.
+  ctrl-x         Switch between user and system managers. Selection is reset.
+  ctrl-s         Filter by states. Selection is reset.
+  ctrl-t         Filter by types. Selection is reset.
+  ctrl-v         'cat' the selected units in the preview window.
+  ctrl-p         History previous.
+  ctrl-n         History next.
+  left|right     Toggle word-wrapping in the preview window.
+                 Note: fzf does not support horizontal scrolling.
+  shift-up       Scroll up in the preview window.
+  shift-down     Scroll down in the preview window.
+  ?              Show keybindings.
+EOF
+}
+
 function _sysz_help() {
   cat <<EOF
 $sysz_prog - interactive terminal UI for systemctl
 
-$sysz_prog [OPTS...] [CMD ...] [-- ARGS...]
+$sysz_prog [OPTS...] [CMD...] [-- ARGS...]
 
 sudo is invoked automatically, if necessary.
 
@@ -177,20 +196,11 @@ OPTS:
 
 ARGS are passed to the systemctl command for each selected unit.
 
-Keybindings:
-  TAB            Toggle selection.
-  ctrl-r         Run daemon-reload. Selection is reset.
-  ctrl-x         Switch between user and system managers. Selection is reset.
-  ctrl-s         Filter by states. Selection is reset.
-  ctrl-t         Filter by types. Selection is reset.
-  ctrl-v         'cat' the selected units in the preview window.
-  ctrl-p         History previous.
-  ctrl-n         History next.
-  left|right     Toggle word-wrapping in the preview window.
-                 Note: fzf does not support horizontal scrolling.
-  shift-up       Scroll up in the preview window.
-  shift-down     Scroll down in the preview window.
-  ?              Show keybindings.
+EOF
+
+  _sysz_print_keybindings
+
+  cat <<EOF
 
 Environment Variables:
   SYSZ_HISTORY     Command history file [default: $XDG_CACHE_HOME/sysz/history].
