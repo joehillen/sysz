@@ -15,11 +15,11 @@ shopt -s extdebug
 # constants
 declare -rx SHELL=bash
 declare -r MIN_FZF_VERSION=0.27.1
-prog=$(basename "$0")
-declare -r prog
+sysz_prog=$(basename "$0")
+declare -r sysz_prog
 declare -r sysz_version=2.0.0-beta
-debug_file=sysz.$(date -Iminutes).debug
-declare -r debug_file
+sysz_debug_file=sysz.$(date -Iminutes).debug
+declare -r sysz_debug_file
 
 # variables
 
@@ -68,12 +68,12 @@ export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
 export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
-declare -a picked_cmds
-declare -a args
+declare -a sysz_picked_cmds
+declare -a sysz_args
 declare exitcode=0
-declare -a picked_managers
-declare -a picked_states
-declare -a picked_types
+declare -a sysz_picked_managers
+declare -a sysz_picked_states
+declare -a sysz_picked_types
 
 # Data Structures
 #   Unit
@@ -139,7 +139,7 @@ function __values() {
 
 function _sysz_short_help() {
   cat <<EOF
-$prog [OPTS...] [CMD ...] [-- ARGS...]
+$sysz_prog [OPTS...] [CMD ...] [-- ARGS...]
 
 OPTS:
   -u, --user                  Only show --user units [default].
@@ -156,9 +156,9 @@ EOF
 
 function _sysz_help() {
   cat <<EOF
-$prog - interactive terminal UI for systemctl
+$sysz_prog - interactive terminal UI for systemctl
 
-$prog [OPTS...] [CMD ...] [-- ARGS...]
+$sysz_prog [OPTS...] [CMD ...] [-- ARGS...]
 
 sudo is invoked automatically, if necessary.
 
@@ -209,11 +209,11 @@ EOF
 
   cat <<EOF
 Examples:
-  $prog -u                             User units.
-  $prog --sys -s active                Active system units.
-  $prog --user --state failed          Failed user units.
-  $prog --type socket                  Sockets.
-  $prog --state=inactive -t service    Inactive services.
+  $sysz_prog -u                             User units.
+  $sysz_prog --sys -s active                Active system units.
+  $sysz_prog --user --state failed          Failed user units.
+  $sysz_prog --type socket                  Sockets.
+  $sysz_prog --state=inactive -t service    Inactive services.
 EOF
 
 }
@@ -221,7 +221,7 @@ EOF
 function _sysz_quit() {
   local code=${1:-$exitcode}
   _sysz_debug "quit=$code"
-  [[ $SYSZ_DEBUG = true ]] && cat "$debug_file" >&2
+  [[ $SYSZ_DEBUG = true ]] && cat "$sysz_debug_file" >&2
   exit "$code"
 }
 
@@ -239,7 +239,7 @@ function _sysz_error() {
 }
 
 function _sysz_debug() {
-  [[ $SYSZ_DEBUG = true ]] && echo "$(date -Isec): $*" >>"$debug_file"
+  [[ $SYSZ_DEBUG = true ]] && echo "$(date -Isec): $*" >>"$sysz_debug_file"
 }
 
 function _sysz_verbose() {
@@ -334,7 +334,7 @@ function _sysz_ls() {
   local inactive
   [[ $* = *"--state=inactive"* ]] && inactive=true
 
-  for mgr in "${picked_managers[@]}"; do
+  for mgr in "${sysz_picked_managers[@]}"; do
     _sysz_ctl \
       --"$mgr" \
       --no-legend \
@@ -372,28 +372,6 @@ function _sysz_contains() {
 }
 
 function _sysz_all_units() {
-  # failed service
-  # failed timer
-  # failed units
-  # bad service
-  # bad timer
-  # bad units
-  # active service
-  # active timer
-  # active units
-  # masked
-  # not-found
-  # remaining service
-  # remaining timer
-  # remaining
-  # templates
-  # declare -ra bad_states=(
-  #   abandoned
-  #   bad
-  #   error
-  #   failed
-  # )
-
   active_states=(
     --state=active
     --state=reloading
@@ -427,7 +405,7 @@ function _sysz_all_units() {
   _sysz_ls cyan list-unit-files '*@.*'
 
   # everything from list-unit-files that isn't in list-units or a template
-  for mgr in "${picked_managers[@]}"; do
+  for mgr in "${sysz_picked_managers[@]}"; do
     cmd="_sysz_ctl --plain --no-pager --no-legend --full --all --$mgr"
     comm -13 <($cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
       <($cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | sed "s/^/[${mgr:0:1}] /"
@@ -435,7 +413,7 @@ function _sysz_all_units() {
 }
 
 function _sysz_check_states() {
-  for state in "${picked_states[@]}"; do
+  for state in "${sysz_picked_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
       _sysz_error "Invalid state: $state"
@@ -445,7 +423,7 @@ function _sysz_check_states() {
 }
 
 function _sysz_check_types() {
-  for unit_type in "${picked_types[@]}"; do
+  for unit_type in "${sysz_picked_types[@]}"; do
     _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
@@ -487,9 +465,9 @@ function _sysz_mgr_prompt() {
       --multi \
       --no-info \
       --prompt="Manager: " |
-    readarray -t picked_managers || _sysz_quit $?
+    readarray -t sysz_picked_managers || _sysz_quit $?
 
-  _sysz_debug "picked_managers=${picked_managers[*]}"
+  _sysz_debug "sysz_picked_managers=${sysz_picked_managers[*]}"
 }
 
 function _sysz_daemon_reload_prompt() {
@@ -551,13 +529,13 @@ function _sysz_states_prompt() {
       --multi \
       --no-sort \
       --prompt="States: " |
-    readarray -t picked_states || _sysz_quit $?
+    readarray -t sysz_picked_states || _sysz_quit $?
 
-  _sysz_debug "Picked states: ${picked_states[*]}"
+  _sysz_debug "Picked states: ${sysz_picked_states[*]}"
 
-  for state in "${picked_states[@]}"; do
+  for state in "${sysz_picked_states[@]}"; do
     if [[ $state = '(all)' ]]; then
-      picked_states=()
+      sysz_picked_states=()
       return
     fi
   done
@@ -581,13 +559,13 @@ function _sysz_types_prompt() {
       --multi \
       --no-sort \
       --prompt="Types: " |
-    readarray -t picked_types || _sysz_quit $?
+    readarray -t sysz_picked_types || _sysz_quit $?
 
-  _sysz_debug "Picked types: ${picked_types[*]}"
+  _sysz_debug "Picked types: ${sysz_picked_types[*]}"
 
-  for type in "${picked_types[@]}"; do
+  for type in "${sysz_picked_types[@]}"; do
     if [[ $type = '(all)' ]]; then
-      picked_types=()
+      sysz_picked_types=()
       return
     fi
   done
@@ -827,39 +805,39 @@ function _sysz_main() {
 
   # root does not have user units
   if [[ $EUID -eq 0 ]]; then
-    picked_managers=(system)
+    sysz_picked_managers=(system)
   else
-    picked_managers=(user system)
+    sysz_picked_managers=(user system)
   fi
 
   # TODO: combine these into one loop
   while [[ -n $1 ]]; do
     case $1 in
     -u | --user)
-      picked_managers=(user)
+      sysz_picked_managers=(user)
       ;;
     --sys | --system)
-      picked_managers=(system)
+      sysz_picked_managers=(system)
       ;;
     --state=*)
-      picked_states+=("${1#--state=}")
+      sysz_picked_states+=("${1#--state=}")
       ;;
     -s | --state)
-      picked_states+=("$2")
+      sysz_picked_states+=("$2")
       shift
       ;;
     --type=*)
-      picked_types+=("${1#--type=}")
+      sysz_picked_types+=("${1#--type=}")
       ;;
     -t | --type)
-      picked_types+=("$2")
+      sysz_picked_types+=("$2")
       shift
       ;;
     --no-color)
       SYSZ_COLORS=0
       ;;
     -v | --version)
-      echo "$prog" $sysz_version
+      echo "$sysz_prog" $sysz_version
       exit 0
       ;;
     --debug)
@@ -896,32 +874,32 @@ function _sysz_main() {
       ;;
     # Handle short names
     re)
-      picked_cmds=(restart)
+      sysz_picked_cmds=(restart)
       ;;
     s)
-      picked_cmds+=(status)
+      sysz_picked_cmds+=(status)
       ;;
     ed)
-      picked_cmds+=(edit)
+      sysz_picked_cmds+=(edit)
       ;;
     en)
-      picked_cmds+=(enable)
+      sysz_picked_cmds+=(enable)
       ;;
     d | dis)
-      picked_cmds+=(disable)
+      sysz_picked_cmds+=(disable)
       ;;
     j)
-      picked_cmds+=(journal)
+      sysz_picked_cmds+=(journal)
       ;;
     f)
-      picked_cmds+=(follow)
+      sysz_picked_cmds+=(follow)
       ;;
     c)
-      picked_cmds+=(cat)
+      sysz_picked_cmds+=(cat)
       ;;
     --)
       shift
-      args=("$@")
+      sysz_args=("$@")
       break
       ;;
     -*)
@@ -931,16 +909,16 @@ function _sysz_main() {
       ;;
     *)
       # assume the next argument is a command name
-      picked_cmds+=("$1")
+      sysz_picked_cmds+=("$1")
       ;;
     esac
     shift
   done
 
-  _sysz_debug "picked_managers=(${picked_managers[*]})"
-  _sysz_debug "picked_cmds=(${picked_cmds[*]})"
-  _sysz_debug "picked_states=(${picked_states[*]})"
-  _sysz_debug "picked_types=(${picked_types[*]})"
+  _sysz_debug "sysz_picked_managers=(${sysz_picked_managers[*]})"
+  _sysz_debug "sysz_picked_cmds=(${sysz_picked_cmds[*]})"
+  _sysz_debug "sysz_picked_states=(${sysz_picked_states[*]})"
+  _sysz_debug "sysz_picked_types=(${sysz_picked_types[*]})"
   _sysz_check_states
   _sysz_check_types
   _sysz_check_cmds
