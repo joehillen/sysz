@@ -335,7 +335,7 @@ function _sysz_ls() {
   [[ $* = *"--state=inactive"* ]] && inactive=true
 
   for mgr in "${picked_managers[@]}"; do
-    _sysz_sudo_ctl \
+    _sysz_ctl \
       --"$mgr" \
       --no-legend \
       --full \
@@ -428,7 +428,7 @@ function _sysz_all_units() {
 
   # everything from list-unit-files that isn't in list-units or a template
   for mgr in "${picked_managers[@]}"; do
-    cmd="_sysz_sudo_ctl --plain --no-pager --no-legend --full --all --$mgr"
+    cmd="_sysz_ctl --plain --no-pager --no-legend --full --all --$mgr"
     comm -13 <($cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
       <($cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | sed "s/^/[${mgr:0:1}] /"
   done
