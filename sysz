@@ -394,22 +394,28 @@ function _sysz_all_units {
   #   failed
   # )
 
+  active_states=(
+    --state=active
+    --state=reloading
+    --state=activating
+    --state=deactivating
+  )
   systemctl --type=help | grep -Ev ':|service|timer' | sed 's/^/--type=/' | readarray -t other_types
 
   # failed
   _sysz_ls red list-units --failed
 
   # active services and timers
-  _sysz_ls green list-units --type=service --type=timer --state=active
+  _sysz_ls green list-units --type=service --type=timer "${active_states[@]}"
 
   # other active units
-  _sysz_ls green list-units --state=active "${other_types[@]}"
+  _sysz_ls green list-units "${other_types[@]}" "${active_states[@]}"
 
   # inactive services and timers
   _sysz_ls reset list-units --type=service --type=timer --state=inactive
 
   # other inactive units
-  _sysz_ls reset list-units --state=inactive "${other_types[@]}"
+  _sysz_ls reset list-units "${other_types[@]}" --state=inactive
 
   # not found
   _sysz_ls yellow list-units --state=not-found
