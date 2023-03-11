@@ -309,7 +309,7 @@ function _sysz_fzf_cat() {
   _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
-function _sysz_fzf_preview() {
+function _sysz_fzf_unit_preview() {
   local unit
   local args
   local mgr
@@ -320,7 +320,7 @@ function _sysz_fzf_preview() {
   if [[ $unit = *@.* ]]; then
     _sysz_fzf_cat "${args[@]}"
   else
-    _sysz_ctl "$mgr" status --no-pager -- "$unit"
+    systemctl "$mgr" status --no-pager -- "$unit"
   fi
 }
 
@@ -594,7 +594,7 @@ function _sysz_prompt_units() {
       --header '? for keybindings' \
       --bind "?:preview(echo '$_sysz_fzf_help')" \
       --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
-      --preview="'${BASH_SOURCE[0]}' _sysz_fzf_preview {}" \
+      --preview="'${BASH_SOURCE[0]}' _sysz_fzf_unit_preview {}" \
       --preview-window=down
 }
 
@@ -625,7 +625,7 @@ function _sysz_prompt_cmds() {
     _sysz_debug "unit_file_state=$unit_file_state"
     can_reload=$(_sysz_show "$pick" CanReload)
     _sysz_debug "can_reload=$can_reload"
-    preview_cmd="'${BASH_SOURCE[0]}' _sysz_fzf_preview '$pick'"
+    preview_cmd="'${BASH_SOURCE[0]}' _sysz_fzf_unit_preview '$pick'"
     _sysz_debug "preview_cmd=$preview_cmd"
   fi
 
