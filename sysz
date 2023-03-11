@@ -68,12 +68,12 @@ export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
 export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
-declare -a sysz_picked_cmds
+declare -a sysz_cmds
 declare -a sysz_args
 declare exitcode=0
-declare -a sysz_picked_managers
-declare -a sysz_picked_states
-declare -a sysz_picked_types
+declare -a sysz_managers
+declare -a sysz_states
+declare -a sysz_types
 
 # Data Structures
 #   Unit
@@ -334,7 +334,7 @@ function _sysz_ls() {
   local inactive
   [[ $* = *"--state=inactive"* ]] && inactive=true
 
-  for mgr in "${sysz_picked_managers[@]}"; do
+  for mgr in "${sysz_managers[@]}"; do
     _sysz_ctl \
       --"$mgr" \
       --no-legend \
@@ -405,7 +405,7 @@ function _sysz_all_units() {
   _sysz_ls cyan list-unit-files '*@.*'
 
   # everything from list-unit-files that isn't in list-units or a template
-  for mgr in "${sysz_picked_managers[@]}"; do
+  for mgr in "${sysz_managers[@]}"; do
     cmd="_sysz_ctl --plain --no-pager --no-legend --full --all --$mgr"
     comm -13 <($cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
       <($cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | sed "s/^/[${mgr:0:1}] /"
@@ -445,9 +445,9 @@ function _sysz_mgr_prompt() {
       --multi \
       --no-info \
       --prompt="Manager: " |
-    readarray -t sysz_picked_managers || _sysz_quit $?
+    readarray -t sysz_managers || _sysz_quit $?
 
-  _sysz_debug "sysz_picked_managers=${sysz_picked_managers[*]}"
+  _sysz_debug "sysz_managers=${sysz_managers[*]}"
 }
 
 function _sysz_daemon_reload_prompt() {
@@ -509,13 +509,13 @@ function _sysz_states_prompt() {
       --multi \
       --no-sort \
       --prompt="States: " |
-    readarray -t sysz_picked_states || _sysz_quit $?
+    readarray -t sysz_states || _sysz_quit $?
 
-  _sysz_debug "Picked states: ${sysz_picked_states[*]}"
+  _sysz_debug "Picked states: ${sysz_states[*]}"
 
-  for state in "${sysz_picked_states[@]}"; do
+  for state in "${sysz_states[@]}"; do
     if [[ $state = '(all)' ]]; then
-      sysz_picked_states=()
+      sysz_states=()
       return
     fi
   done
@@ -539,13 +539,13 @@ function _sysz_types_prompt() {
       --multi \
       --no-sort \
       --prompt="Types: " |
-    readarray -t sysz_picked_types || _sysz_quit $?
+    readarray -t sysz_types || _sysz_quit $?
 
-  _sysz_debug "Picked types: ${sysz_picked_types[*]}"
+  _sysz_debug "Picked types: ${sysz_types[*]}"
 
-  for type in "${sysz_picked_types[@]}"; do
+  for type in "${sysz_types[@]}"; do
     if [[ $type = '(all)' ]]; then
-      sysz_picked_types=()
+      sysz_types=()
       return
     fi
   done
@@ -599,11 +599,8 @@ function _sysz_prompt_units() {
       --preview-window=down
 }
 
-function _sysz_prompt_commands() {
-  declare -a picks
-  picks=("$@")
-
-  if [[ ${#picks[@]} -gt 1 ]]; then
+function _sysz_prompt_cmds() {
+  if [[ ${#sysz_units[@]} -gt 1 ]]; then
     printf -v preview '%s\n' "${picks[*]}"
     _sysz_debug "preview=$preview"
     preview_cmd="echo -n '$preview'"
@@ -681,6 +678,7 @@ function _sysz_prompt_commands() {
 
 function _sysz_handle_key() {
   local key=$1
+  _sysz_debug "_sysz_handle_key"
   _sysz_debug "key=$key"
   case $key in
   ctrl-r)
@@ -770,7 +768,7 @@ function _sysz_do_commands() {
 }
 
 function _sysz_check_states() {
-  for state in "${sysz_picked_states[@]}"; do
+  for state in "${sysz_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
       _sysz_error "Invalid state: $state"
@@ -780,7 +778,7 @@ function _sysz_check_states() {
 }
 
 function _sysz_check_types() {
-  for unit_type in "${sysz_picked_types[@]}"; do
+  for unit_type in "${sysz_types[@]}"; do
     _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
@@ -790,7 +788,7 @@ function _sysz_check_types() {
 }
 
 function _sysz_check_cmds() {
-  for cmd in "${sysz_picked_cmds[@]}"; do
+  for cmd in "${sysz_cmds[@]}"; do
     _sysz_debug "checking cmd=$cmd"
     systemctl --help | grep UNIT | awk '{print $1}' | grep -q "$cmd" || {
       _sysz_error "Invalid systemctl command: $cmd"
@@ -800,8 +798,6 @@ function _sysz_check_cmds() {
 }
 
 function _sysz_main() {
-  # selected units from fzf
-  local -a units
 
   # main
   _sysz_debug "fzf version=$(fzf --version)"
@@ -818,9 +814,9 @@ function _sysz_main() {
 
   # root does not have user units
   if [[ $EUID -eq 0 ]]; then
-    sysz_picked_managers=(system)
+    sysz_managers=(system)
   else
-    sysz_picked_managers=(user system)
+    sysz_managers=(user system)
   fi
 
   # TODO: combine these into one loop
@@ -828,23 +824,23 @@ function _sysz_main() {
     case $1 in
     # options
     -u | --user)
-      sysz_picked_managers=(user)
+      sysz_managers=(user)
       ;;
     --sys | --system)
-      sysz_picked_managers=(system)
+      sysz_managers=(system)
       ;;
     --state=*)
-      sysz_picked_states+=("${1#--state=}")
+      sysz_states+=("${1#--state=}")
       ;;
     -s | --state)
-      sysz_picked_states+=("$2")
+      sysz_states+=("$2")
       shift
       ;;
     --type=*)
-      sysz_picked_types+=("${1#--type=}")
+      sysz_types+=("${1#--type=}")
       ;;
     -t | --type)
-      sysz_picked_types+=("$2")
+      sysz_types+=("$2")
       shift
       ;;
     --no-color)
@@ -881,28 +877,28 @@ function _sysz_main() {
 
     # short command names
     re)
-      sysz_picked_cmds=(restart)
+      sysz_cmds=(restart)
       ;;
     s)
-      sysz_picked_cmds+=(status)
+      sysz_cmds+=(status)
       ;;
     ed)
-      sysz_picked_cmds+=(edit)
+      sysz_cmds+=(edit)
       ;;
     en)
-      sysz_picked_cmds+=(enable)
+      sysz_cmds+=(enable)
       ;;
     d | dis)
-      sysz_picked_cmds+=(disable)
+      sysz_cmds+=(disable)
       ;;
     j)
-      sysz_picked_cmds+=(journal)
+      sysz_cmds+=(journal)
       ;;
     f)
-      sysz_picked_cmds+=(follow)
+      sysz_cmds+=(follow)
       ;;
     c)
-      sysz_picked_cmds+=(cat)
+      sysz_cmds+=(cat)
       ;;
 
     # systemctl args
@@ -919,42 +915,50 @@ function _sysz_main() {
       ;;
     *)
       # assume the next argument is a command name
-      sysz_picked_cmds+=("$1")
+      sysz_cmds+=("$1")
       ;;
     esac
     shift
   done
 
-  _sysz_debug "sysz_picked_managers=(${sysz_picked_managers[*]})"
-  _sysz_debug "sysz_picked_cmds=(${sysz_picked_cmds[*]})"
-  _sysz_debug "sysz_picked_states=(${sysz_picked_states[*]})"
-  _sysz_debug "sysz_picked_types=(${sysz_picked_types[*]})"
+  _sysz_debug "sysz_managers=(${sysz_managers[*]})"
+  _sysz_debug "sysz_cmds=(${sysz_cmds[*]})"
+  _sysz_debug "sysz_states=(${sysz_states[*]})"
+  _sysz_debug "sysz_types=(${sysz_types[*]})"
   _sysz_check_states
   _sysz_check_types
   _sysz_check_cmds
 
-  declare -a results
+  local -a picks
+  local -a results
+  local key
   while :; do
-    _sysz_prompt_units | readarray -t units
-    _sysz_debug "units=${units[*]:1}"
+    _sysz_prompt_units | readarray -t picks
 
     # The first result from fzf is always the key
-    _sysz_handle_key "${units[0]}" || break
+    key=${picks[0]}
+    results=${picks[*]:1}
+
+    _sysz_handle_key "$key" || break
   done
 
-  # results look like '[s] foo.service With a description'
-  for result in "${results[@]:1}"; do
+  _sysz_debug "results=${results[*]}"
+  if [[ ${#results[@]} -eq 0 ]]; then
+    _sysz_quit 1
+  fi
+
+  # results look like '[s] foo.service - description'
+  for result in "${results[@]}"; do
     _sysz_debug "result=$result"
     # read the first 2 words and throw away the rest
     IFS=" " read -r -a words <<<"$result"
-    _sysz_debug "words=${words[*]}"
     # picks are of the form: [s] foo.service
-    picks+=("${words[0]} ${words[1]}")
+    sysz_units+=("${words[0]} ${words[1]}")
   done
 
-  if [[ ${#picks[@]} -eq 0 ]]; then
-    _sysz_quit 1
-  fi
+  while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
+    _sysz_prompt_cmds
+  done
 }
 
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
