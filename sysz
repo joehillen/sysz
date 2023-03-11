@@ -86,7 +86,7 @@ declare -a picked_types
 #     CanReload
 #     Manager
 
-function __max_len {
+function __max_len() {
   local max=0
   while read -r -d' ' str; do
     if [[ $max -lt ${#str} ]]; then
@@ -98,7 +98,7 @@ function __max_len {
 
 # ordered assocative array helpers
 # https://stackoverflow.com/a/72263994/334632
-function __add {
+function __add() {
   local var=$1
   local key=$2
   local val=$3
@@ -110,14 +110,14 @@ function __add {
   map["$key"]=$val
 }
 
-function __get {
+function __get() {
   local var=$1
   local key=$2
   local -n tmp=${var}_MAP
   echo "${tmp[$key]}"
 }
 
-function __keys {
+function __keys() {
   local var=$1
   local -n tmp=${var}_ORDER
   for x in "${tmp[@]}"; do
@@ -125,7 +125,7 @@ function __keys {
   done
 }
 
-function __values {
+function __values() {
   local var=$1
   # shellcheck disable=SC2178
   local -n map=${var}_MAP
@@ -137,7 +137,7 @@ function __values {
   echo
 }
 
-function _sysz_short_help {
+function _sysz_short_help() {
   cat <<EOF
 $prog [OPTS...] [CMD ...] [-- ARGS...]
 
@@ -154,7 +154,7 @@ OPTS:
 EOF
 }
 
-function _sysz_help {
+function _sysz_help() {
   cat <<EOF
 $prog - interactive terminal UI for systemctl
 
@@ -218,14 +218,14 @@ EOF
 
 }
 
-function _sysz_quit {
+function _sysz_quit() {
   local code=${1:-$exitcode}
   _sysz_debug "quit=$code"
   [[ $SYSZ_DEBUG = true ]] && cat "$debug_file" >&2
   exit "$code"
 }
 
-function _sysz_color {
+function _sysz_color() {
   local color=$1
   shift
   echo -en "${colors[$color]}"
@@ -233,16 +233,16 @@ function _sysz_color {
   echo -e "${colors[reset]}"
 }
 
-function _sysz_error {
+function _sysz_error() {
   _sysz_debug "ERROR: $*"
   _sysz_color red "ERROR: $*" >&2
 }
 
-function _sysz_debug {
+function _sysz_debug() {
   [[ $SYSZ_DEBUG = true ]] && echo "$(date -Isec): $*" >>"$debug_file"
 }
 
-function _sysz_verbose {
+function _sysz_verbose() {
   [[ $SYSZ_VERBOSE = true ]] && echo "> $*" >&2
   _sysz_debug "> $*"
   "$@"
@@ -251,11 +251,11 @@ function _sysz_verbose {
   return "$code"
 }
 
-function _sysz_ctl {
+function _sysz_ctl() {
   _sysz_verbose systemctl "$@"
 }
 
-function _sysz_sudo_ctl {
+function _sysz_sudo_ctl() {
   if [[ $EUID -ne 0 && $1 = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
     _sysz_verbose sudo -E systemctl "$@" || exitcode=$?
@@ -264,7 +264,7 @@ function _sysz_sudo_ctl {
   fi
 }
 
-function _sysz_journalctl {
+function _sysz_journalctl() {
   if [[ $1 = --user ]]; then
     # use --user-unit flag if it's a user unit
     _sysz_verbose journalctl --user-unit="$2" "${@:3}" || exitcode=$?
@@ -278,7 +278,7 @@ function _sysz_journalctl {
   fi
 }
 
-function _sysz_mgr {
+function _sysz_mgr() {
   case ${1%% *} in
   '[u'* | user* | --user*)
     echo --user
@@ -293,11 +293,11 @@ function _sysz_mgr {
   esac
 }
 
-function _sysz_fzf_cat {
+function _sysz_fzf_cat() {
   _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
 
-function _sysz_fzf_preview {
+function _sysz_fzf_preview() {
   local unit
   local args
   local mgr
@@ -312,23 +312,23 @@ function _sysz_fzf_preview {
   fi
 }
 
-function _sysz_show {
+function _sysz_show() {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
-function _sysz_color_unit {
+function _sysz_color_unit() {
   local color=$1
   # only add color to the unit name, not the [u]/[s] or description
   # also cut out the extra info in the middle
   sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$reset"'\4,'
 }
 
-_sysz_clean() {
+function _sysz_clean() {
   # remove all colors and control characters from stdin
   sed -e 's/\x1b\[[0-9;]*m//g'
 }
 
-function _sysz_ls {
+function _sysz_ls() {
   local color=$1
   shift
   local inactive
@@ -371,7 +371,7 @@ function _sysz_contains() {
   return 1
 }
 
-function _sysz_all_units {
+function _sysz_all_units() {
   # failed service
   # failed timer
   # failed units
@@ -434,7 +434,7 @@ function _sysz_all_units {
   done
 }
 
-function _sysz_check_states {
+function _sysz_check_states() {
   for state in "${picked_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
@@ -444,7 +444,7 @@ function _sysz_check_states {
   done
 }
 
-function _sysz_check_types {
+function _sysz_check_types() {
   for unit_type in "${picked_types[@]}"; do
     _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
@@ -454,7 +454,7 @@ function _sysz_check_types {
   done
 }
 
-function _sysz_fzf {
+function _sysz_fzf() {
   local color_arg
   _sysz_debug "_sysz_fzf"
   case "$SYSZ_COLORS" in
@@ -473,7 +473,7 @@ function _sysz_fzf {
     "$@"
 }
 
-function _sysz_mgr_prompt {
+function _sysz_mgr_prompt() {
   if [[ $EUID -eq 0 ]]; then
     echo system
     return
@@ -492,7 +492,7 @@ function _sysz_mgr_prompt {
   _sysz_debug "picked_managers=${picked_managers[*]}"
 }
 
-function _sysz_daemon_reload_prompt {
+function _sysz_daemon_reload_prompt() {
   local managers
   (
     if [[ $EUID -ne 0 ]]; then
@@ -516,7 +516,7 @@ function _sysz_daemon_reload_prompt {
   done
 }
 
-function _sysz_ls_states {
+function _sysz_ls_states() {
   local prefered=(
     failed
     active
@@ -545,7 +545,7 @@ function _sysz_ls_states {
     grep -v '^$'
 }
 
-function _sysz_states_prompt {
+function _sysz_states_prompt() {
   _sysz_ls_states |
     _sysz_fzf \
       --multi \
@@ -564,7 +564,7 @@ function _sysz_states_prompt {
   _sysz_check_states
 }
 
-function _sysz_ls_types {
+function _sysz_ls_types() {
   echo '(all)'
   echo service
   echo timer
@@ -575,7 +575,7 @@ function _sysz_ls_types {
   echo template
 }
 
-function _sysz_types_prompt {
+function _sysz_types_prompt() {
   _sysz_ls_types |
     _sysz_fzf \
       --multi \
@@ -594,7 +594,7 @@ function _sysz_types_prompt {
   _sysz_check_types
 }
 
-function _sysz_tmpl_prompt {
+function _sysz_tmpl_prompt() {
   local unit
   unit=$1
   # Handle template units
@@ -612,7 +612,7 @@ function _sysz_tmpl_prompt {
   echo "$unit"
 }
 
-function _sysz_cmd {
+function _sysz_cmd() {
   local color=$1
   shift
   local cmd=$1
@@ -625,7 +625,7 @@ function _sysz_cmd {
   fi
 }
 
-function _sysz_prompt_units {
+function _sysz_prompt_units() {
   _sysz_all_units |
     _sysz_fzf \
       --multi \
@@ -641,7 +641,7 @@ function _sysz_prompt_units {
       --preview-window=down
 }
 
-function _sysz_prompt_commands {
+function _sysz_prompt_commands() {
   declare -a picks
   picks=("$@")
 
@@ -721,7 +721,7 @@ function _sysz_prompt_commands {
     ) || _sysz_quit $?
 }
 
-function _sysz_handle_key {
+function _sysz_handle_key() {
   local key=$1
   _sysz_debug "key=$key"
   case $key in
@@ -745,7 +745,7 @@ function _sysz_handle_key {
   return 1
 }
 
-function _sysz_handle_command {
+function _sysz_handle_command() {
   local pick=$1
   local cmd=$2
   local mgr
@@ -793,7 +793,7 @@ function _sysz_handle_command {
   esac
 }
 
-function _sysz_do_commands {
+function _sysz_do_commands() {
   declare -a picks
   picks=("$@")
   declare -a cmds
@@ -811,7 +811,7 @@ function _sysz_do_commands {
   done
 }
 
-function _sysz_main {
+function _sysz_main() {
   # main
   _sysz_debug "fzf version=$(fzf --version)"
 
