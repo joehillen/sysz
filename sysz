@@ -582,20 +582,59 @@ function _sysz_cmd() {
   fi
 }
 
+function _sysz_ls_units() {
+  if [[ ${#sysz_states[@]} -eq 0 ]]; then
+    _sysz_all_units
+    return
+  fi
+}
+
 function _sysz_prompt_units() {
-  _sysz_all_units |
-    _sysz_fzf \
-      --multi \
-      --tiebreak=begin,end,index \
-      --nth=2.. \
-      --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
-      --history="$SYSZ_HISTORY" \
-      --prompt="Units: " \
-      --header '? for keybindings' \
-      --bind "?:preview(echo '$_sysz_fzf_help')" \
-      --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
-      --preview="'${BASH_SOURCE[0]}' _sysz_fzf_unit_preview {}" \
-      --preview-window=down
+  local -a picks
+  local -a results
+  local key
+  while :; do
+    _sysz_ls_units |
+      _sysz_fzf \
+        --multi \
+        --tiebreak=begin,end,index \
+        --nth=2.. \
+        --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
+        --history="$SYSZ_HISTORY" \
+        --prompt="Units: " \
+        --header '? for keybindings' \
+        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_print_keybindings)" \
+        --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
+        --preview="SYSZ_DEBUG=false '${BASH_SOURCE[0]}' _sysz_fzf_unit_preview {}" \
+        --preview-window=down |
+      _sysz_clean |
+      readarray -t picks
+
+    # The first result from fzf is always the key
+    key=${picks[0]}
+    results=("${picks[@]:1}")
+
+    if [[ $key ]]; then
+      _sysz_handle_key "$key"
+      continue
+    fi
+
+    if [[ ${#results[@]} -eq 0 ]]; then
+      _sysz_debug "no results"
+      _sysz_quit 1
+    fi
+    break
+  done
+
+  # results look like '[s] foo.service - description'
+  for result in "${results[@]}"; do
+    _sysz_debug "result=$result"
+    # read the first 2 words and throw away the rest
+    IFS=" " read -r -a words <<<"$result"
+    # picks are of the form: [s] foo.service
+    sysz_units+=("${words[0]} ${words[1]}")
+  done
+  _sysz_debug "sysz_units=${sysz_units[*]}"
 }
 
 function _sysz_prompt_cmds() {
@@ -928,36 +967,11 @@ function _sysz_main() {
   _sysz_check_types
   _sysz_check_cmds
 
-  local -a picks
-  local -a results
-  local key
-  while :; do
-    _sysz_prompt_units | readarray -t picks
+  _sysz_prompt_units
 
-    # The first result from fzf is always the key
-    key=${picks[0]}
-    results=${picks[*]:1}
-
-    _sysz_handle_key "$key" || break
-  done
-
-  _sysz_debug "results=${results[*]}"
-  if [[ ${#results[@]} -eq 0 ]]; then
-    _sysz_quit 1
-  fi
-
-  # results look like '[s] foo.service - description'
-  for result in "${results[@]}"; do
-    _sysz_debug "result=$result"
-    # read the first 2 words and throw away the rest
-    IFS=" " read -r -a words <<<"$result"
-    # picks are of the form: [s] foo.service
-    sysz_units+=("${words[0]} ${words[1]}")
-  done
-
-  while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
-    _sysz_prompt_cmds
-  done
+  # while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
+  #   _sysz_prompt_cmds
+  # done
 }
 
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
