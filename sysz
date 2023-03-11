@@ -42,7 +42,7 @@ case "$SYSZ_COLORS" in
 esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 if [[ $SYSZ_COLORS -eq 1 ]]; then
-  declare -rA colors=(
+  declare -rA sysz_colors=(
     [none]=''
     [reset]=$'\e[0m'
     [red]=$'\e[31m'
@@ -54,7 +54,7 @@ if [[ $SYSZ_COLORS -eq 1 ]]; then
     [gray]=$'\e[37m'
   )
 else
-  declare -rA colors=(
+  declare -rA sysz_colors=(
     [none]=''
     [reset]=''
     [red]=''
@@ -76,6 +76,35 @@ declare exitcode=0
 declare -a sysz_managers
 declare -a sysz_states
 declare -a sysz_types
+
+declare -rA sysz_state_colors=(
+  # failed
+  [failed]=${sysz_colors[red]}
+  [bad]=${sysz_colors[red]}
+  [error]=${sysz_colors[red]}
+  ["bad-setting"]=${sysz_colors[red]}
+
+  # active
+  [active]=${sysz_colors[green]}
+  [activating]=${sysz_colors[green]}
+  [running]=${sysz_colors[green]}
+  [deactivating]=${sysz_colors[green]}
+  [reloading]=${sysz_colors[green]}
+  [listening]=${sysz_colors[green]}
+  [mounted]=${sysz_colors[green]}
+  [mounting]=${sysz_colors[green]}
+
+  # not-found
+  ["not-found"]=${sysz_colors[yellow]}
+
+  # masked
+  [masked]=${sysz_colors[magenta]}
+
+  # template
+  [template]=${sysz_colors[cyan]}
+
+  [none]=''
+)
 
 # Data Structures
 #   Unit
@@ -156,7 +185,7 @@ OPTS:
 EOF
 }
 
-_sysz_print_keybindings() {
+_sysz_fzf_help() {
   cat <<EOF
 Keybindings:
   TAB            Toggle selection.
@@ -172,7 +201,19 @@ Keybindings:
   shift-up       Scroll up in the preview window.
   shift-down     Scroll down in the preview window.
   ?              Show keybindings.
+
 EOF
+
+  [[ $SYSZ_COLORS -eq 1 ]] && cat <<EOF
+Units are colored based on their state:
+  ${sysz_state_colors[failed]}failed${sysz_colors[reset]}
+  ${sysz_state_colors[active]}active${sysz_colors[reset]}
+  ${sysz_state_colors["not-found"]}not-found${sysz_colors[reset]}
+  ${sysz_state_colors[masked]}masked${sysz_colors[reset]}
+  ${sysz_state_colors[template]}template${sysz_colors[reset]}
+
+EOF
+
 }
 
 function _sysz_help() {
@@ -198,26 +239,13 @@ OPTS:
 
 ARGS are passed to the systemctl command for each selected unit.
 
-EOF
-
-  _sysz_print_keybindings
-
-  cat <<EOF
-
 Environment Variables:
   SYSZ_HISTORY     Command history file [default: $XDG_CACHE_HOME/sysz/history].
   SYSZ_COLORS      Turn colors on or off [default: on].
 
 EOF
-  [[ $SYSZ_COLORS -eq 1 ]] && cat <<EOF
-Units are colored based on their state:
-  $(_sysz_color red "failed        red")
-  $(_sysz_color green "active        green")
-  $(_sysz_color yellow "not-found     yellow")
-  $(_sysz_color magenta "masked        magenta")
-  $(_sysz_color cyan "template      blue")
 
-EOF
+  _sysz_fzf_help
 
   cat <<EOF
 Examples:
@@ -240,9 +268,9 @@ function _sysz_quit() {
 function _sysz_color() {
   local color=$1
   shift
-  echo -en "${colors[$color]}"
+  echo -en "${sysz_colors[$color]}"
   echo -n "$*"
-  echo -e "${colors[reset]}"
+  echo -e "${sysz_colors[reset]}"
 }
 
 function _sysz_error() {
@@ -334,15 +362,15 @@ function _sysz_clean() {
 }
 
 function _sysz_print_unit() {
-  local color=$1
+  local state=$1
   local mgr=$2
   local unit=$3
   local desc=$4
 
   echo -n "[${mgr:0:1}] "
-  echo -en "${colors[$color]}"
+  echo -en "${sysz_state_colors[$state]}"
   echo -n "$unit"
-  echo -en "${colors[reset]}"
+  echo -en "${sysz_colors[reset]}"
   [[ $desc ]] && echo -n " - $desc"
   echo
 }
@@ -373,17 +401,18 @@ function _sysz_all_units() {
     --state=reloading
     --state=activating
     --state=deactivating
+    --state=running
   )
   systemctl --type=help | grep -Ev ':|service|timer' | sed 's/^/--type=/' | readarray -t other_types
 
   # failed
-  _sysz_ls red list-units --failed
+  _sysz_ls failed list-units --failed
 
   # active services and timers
-  _sysz_ls green list-units --type=service --type=timer "${active_states[@]}"
+  _sysz_ls active list-units --type=service --type=timer "${active_states[@]}"
 
   # other active units
-  _sysz_ls green list-units "${other_types[@]}" "${active_states[@]}"
+  _sysz_ls active list-units "${other_types[@]}" "${active_states[@]}"
 
   # inactive services and timers
   _sysz_ls none list-units --type=service --type=timer --state=inactive
@@ -392,13 +421,13 @@ function _sysz_all_units() {
   _sysz_ls none list-units "${other_types[@]}" --state=inactive
 
   # not found
-  _sysz_ls yellow list-units --state=not-found
+  _sysz_ls not-found list-units --state=not-found
 
   # masked
-  _sysz_ls magenta list-units --state=masked
+  _sysz_ls masked list-units --state=masked
 
   # templates
-  _sysz_ls cyan list-unit-files '*@.*'
+  _sysz_ls template list-unit-files '*@.*'
 
   # everything from list-unit-files that isn't in list-units or a template
   for mgr in "${sysz_managers[@]}"; do
@@ -493,7 +522,6 @@ function _sysz_ls_states() {
   # which you probably aren't looking for
   systemctl --state=help |
     grep -v ':' |
-    grep -v 'ing' |
     grep -Ev "^$(
       printf '%s|' "${prefered[@]:0:${#prefered[@]}-1}"
       echo "${prefered[*]: -1}"
@@ -508,9 +536,10 @@ function _sysz_states_prompt() {
       --multi \
       --no-sort \
       --prompt="States: " |
+    sort -u |
     readarray -t sysz_states || _sysz_quit $?
 
-  _sysz_debug "Picked states: ${sysz_states[*]}"
+  _sysz_debug "sysz_states=${sysz_states[*]}"
 
   for state in "${sysz_states[@]}"; do
     if [[ $state = '(all)' ]]; then
@@ -603,7 +632,7 @@ function _sysz_prompt_units() {
         --history="$SYSZ_HISTORY" \
         --prompt="Units: " \
         --header '? for keybindings' \
-        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_print_keybindings)" \
+        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_fzf_help)" \
         --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
         --preview="SYSZ_DEBUG=false '${BASH_SOURCE[0]}' _sysz_fzf_unit_preview {}" \
         --preview-window=down |
