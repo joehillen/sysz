@@ -412,26 +412,6 @@ function _sysz_all_units() {
   done
 }
 
-function _sysz_check_states() {
-  for state in "${sysz_picked_states[@]}"; do
-    _sysz_debug "state=$state"
-    if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
-      _sysz_error "Invalid state: $state"
-      _sysz_quit 1
-    fi
-  done
-}
-
-function _sysz_check_types() {
-  for unit_type in "${sysz_picked_types[@]}"; do
-    _sysz_debug "unit_type=$unit_type"
-    if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
-      _sysz_error "Invalid type: $unit_type"
-      _sysz_quit 1
-    fi
-  done
-}
-
 function _sysz_fzf() {
   local color_arg
   _sysz_debug "_sysz_fzf"
@@ -789,7 +769,40 @@ function _sysz_do_commands() {
   done
 }
 
+function _sysz_check_states() {
+  for state in "${sysz_picked_states[@]}"; do
+    _sysz_debug "state=$state"
+    if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
+      _sysz_error "Invalid state: $state"
+      _sysz_quit 1
+    fi
+  done
+}
+
+function _sysz_check_types() {
+  for unit_type in "${sysz_picked_types[@]}"; do
+    _sysz_debug "unit_type=$unit_type"
+    if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
+      _sysz_error "Invalid type: $unit_type"
+      _sysz_quit 1
+    fi
+  done
+}
+
+function _sysz_check_cmds() {
+  for cmd in "${sysz_picked_cmds[@]}"; do
+    _sysz_debug "checking cmd=$cmd"
+    systemctl --help | grep UNIT | awk '{print $1}' | grep -q "$cmd" || {
+      _sysz_error "Invalid systemctl command: $cmd"
+      _sysz_quit 1
+    }
+  done
+}
+
 function _sysz_main() {
+  # selected units from fzf
+  local -a units
+
   # main
   _sysz_debug "fzf version=$(fzf --version)"
 
@@ -813,6 +826,7 @@ function _sysz_main() {
   # TODO: combine these into one loop
   while [[ -n $1 ]]; do
     case $1 in
+    # options
     -u | --user)
       sysz_picked_managers=(user)
       ;;
@@ -854,16 +868,8 @@ function _sysz_main() {
       _sysz_help
       exit 0
       ;;
-    *)
-      break
-      ;;
-    esac
-    shift
-  done
 
-  # TODO: combine these into one loop
-  while [[ -n $1 ]]; do
-    case $1 in
+    # commands
     _sysz*)
       "$@"
       _sysz_quit $?
@@ -872,7 +878,8 @@ function _sysz_main() {
       _sysz_help
       exit 0
       ;;
-    # Handle short names
+
+    # short command names
     re)
       sysz_picked_cmds=(restart)
       ;;
@@ -897,11 +904,14 @@ function _sysz_main() {
     c)
       sysz_picked_cmds+=(cat)
       ;;
+
+    # systemctl args
     --)
       shift
       sysz_args=("$@")
       break
       ;;
+
     -*)
       _sysz_error "Unknown option: $1" >&2
       _sysz_short_help >&2
@@ -925,11 +935,11 @@ function _sysz_main() {
 
   declare -a results
   while :; do
-    _sysz_prompt_units | readarray -t picks
-    _sysz_debug "picks=${picks[*]:1}"
+    _sysz_prompt_units | readarray -t units
+    _sysz_debug "units=${units[*]:1}"
 
     # The first result from fzf is always the key
-    _sysz_handle_key "${picks[0]}" || break
+    _sysz_handle_key "${units[0]}" || break
   done
 
   # results look like '[s] foo.service With a description'
