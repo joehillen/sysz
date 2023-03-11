@@ -18,7 +18,7 @@ declare -r MIN_FZF_VERSION=0.27.1
 sysz_prog=$(basename "$0")
 declare -r sysz_prog
 declare -r sysz_version=2.0.0-beta
-sysz_debug_file=sysz.$(date -Iminutes).debug
+sysz_debug_file=debug.$(date -Iminutes).log
 declare -r sysz_debug_file
 
 # variables
@@ -575,8 +575,8 @@ function _sysz_cmd() {
   local cmd=$1
   shift
 
-  if [[ ${#ARGS[@]} -gt 0 ]]; then
-    echo -e "$color$cmd$reset ${ARGS[*]}"
+  if [[ ${#sysz_args[@]} -gt 0 ]]; then
+    echo -e "$color$cmd$reset ${sysz_args[*]}"
   else
     echo -e "$color$cmd$reset"
   fi
@@ -729,20 +729,20 @@ function _sysz_handle_command() {
     fi
     ;;
   journal)
-    _sysz_journalctl "$mgr" "$unit" -xe "${ARGS[@]}"
+    _sysz_journalctl "$mgr" "$unit" -xe "${sysz_args[@]}"
     ;;
   follow)
     set -x
-    _sysz_journalctl "$mgr" "$unit" -xef "${ARGS[@]}"
+    _sysz_journalctl "$mgr" "$unit" -xef "${sysz_args[@]}"
     ;;
   status)
-    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${sysz_args[@]}" -- "$unit"
     ;;
   cat | show)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${sysz_args[@]}" -- "$unit"
     ;;
   *)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${ARGS[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${sysz_args[@]}" -- "$unit"
     _sysz_sudo_ctl "$mgr" status --no-pager -- "$unit"
     ;;
   esac
