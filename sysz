@@ -328,17 +328,26 @@ function _sysz_show() {
   _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
 }
 
-function _sysz_color_unit() {
-  local color=$1
-  # only add color to the unit name, not the [u]/[s] or description
-  # also cut out the extra info in the middle
-  sed -Ee 's,^(\[[us]\] )?([^ ]+) [^ ]+ [^ ]+( [^ ]+)?( .*)?$,\1'"$color"'\2'"$reset"'\4,'
-}
-
 function _sysz_clean() {
   # remove all colors and control characters from stdin
   sed -e 's/\x1b\[[0-9;]*m//g'
 }
+
+function _sysz_print_unit() {
+  local color=$1
+  local mgr=$2
+  local unit=$3
+  local desc=$4
+
+  echo -n "[${mgr:0:1}] "
+  echo -en "${colors[$color]}"
+  echo -n "$unit"
+  echo -en "${colors[reset]}"
+  [[ $desc ]] && echo -n " - $desc"
+  echo
+}
+
+declare -r sysz_ls_units_cmd="_sysz_ctl --plain --no-pager --no-legend --full --all"
 
 function _sysz_ls() {
   local color=$1
@@ -347,40 +356,15 @@ function _sysz_ls() {
   [[ $* = *"--state=inactive"* ]] && inactive=true
 
   for mgr in "${sysz_managers[@]}"; do
-    _sysz_ctl \
-      --"$mgr" \
-      --no-legend \
-      --full \
-      --plain \
-      --no-pager \
-      --all \
-      "$@" | _sysz_clean | while read -r unit load active sub description; do
-      if [[ $inactive && $load = not-found ]]; then
-        # don't include "not-found" when showing inactive units
-        continue
-      fi
-      # echo "args=$*"
-      # echo "unit=$unit"
-      # echo "mgr=$mgr"
-      # echo "load=$load"
-      # echo "active=$active"
-      # echo "sub=$sub"
-      # echo "description=$description"
-      echo -n "[${mgr:0:1}] "
-      echo -en "${colors[$color]}"
-      echo -n "$unit"
-      echo -en "${colors[reset]}"
-      [[ $description ]] && echo -n " - $description"
-      echo
-    done
+    $sysz_ls_units_cmd --"$mgr" "$@" | _sysz_clean |
+      while read -r unit load active sub desc; do
+        if [[ $inactive && $load = not-found ]]; then
+          # don't include "not-found" when showing inactive units
+          continue
+        fi
+        _sysz_print_unit "$color" "$mgr" "$unit" "$desc"
+      done
   done
-}
-
-function _sysz_contains() {
-  local e match="$1"
-  shift
-  for e in "$@"; do [[ "$e" == "$match" ]] && return 0; done
-  return 1
 }
 
 function _sysz_all_units() {
@@ -418,9 +402,12 @@ function _sysz_all_units() {
 
   # everything from list-unit-files that isn't in list-units or a template
   for mgr in "${sysz_managers[@]}"; do
-    cmd="_sysz_ctl --plain --no-pager --no-legend --full --all --$mgr"
-    comm -13 <($cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
-      <($cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | sed "s/^/[${mgr:0:1}] /"
+    while comm -13 \
+      <($sysz_ls_units_cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
+      <($sysz_ls_units_cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) |
+      read -r unit; do
+      _sysz_print_unit none "$mgr" "$unit"
+    done
   done
 }
 
