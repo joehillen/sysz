@@ -69,7 +69,7 @@ export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
 declare -a sysz_cmds
-declare -a sysz_args
+declare -a sysz_ctl_args
 declare exitcode=0
 declare -a sysz_managers
 declare -a sysz_states
@@ -335,7 +335,7 @@ function _sysz_journalctl() {
 }
 
 function _sysz_fzf_cat() {
-  _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
+  _sysz_ctl "$(_sysz_manager_flag "$1")" cat -- "$2"
 }
 
 function _sysz_fzf_unit_preview() {
@@ -354,7 +354,7 @@ function _sysz_fzf_unit_preview() {
 }
 
 function _sysz_show() {
-  _sysz_ctl "$(_sysz_mgr "$1")" show "${1##* }" -p "$2" --value
+  _sysz_ctl "$(_sysz_manager_flag "$1")" show "${1##* }" -p "$2" --value
 }
 
 function _sysz_clean() {
@@ -587,8 +587,8 @@ function _sysz_cmd() {
   local cmd=$1
   shift
 
-  if [[ ${#sysz_args[@]} -gt 0 ]]; then
-    echo -e "$color$cmd$reset ${sysz_args[*]}"
+  if [[ ${#sysz_ctl_args[@]} -gt 0 ]]; then
+    echo -e "$color$cmd$reset ${sysz_ctl_args[*]}"
   else
     echo -e "$color$cmd$reset"
   fi
@@ -605,10 +605,18 @@ function _sysz_ls() {
   for mgr in "${sysz_managers[@]}"; do
     $sysz_ls_units_cmd --"$mgr" "$@" | _sysz_clean |
       while read -r unit load active sub desc; do
-        if [[ $inactive && $load = not-found ]]; then
+        if [[ $load = not-found ]]; then
           # don't include "not-found" when showing inactive units
+          if [[ -z $inactive ]]; then
+            _sysz_print_unit "$color" "$mgr" "$unit"
+          fi
           continue
         fi
+
+        if [[ $unit = *@.* ]]; then
+          desc=$(_sysz_ctl --"$mgr" cat "$unit" | grep -oP '^Description=\K.*')
+        fi
+
         _sysz_print_unit "$color" "$mgr" "$unit" "$desc"
       done
   done
@@ -663,19 +671,18 @@ function _sysz_ls_all_units() {
   _sysz_ls masked list-units "${type_flags[@]}" --state=masked
 
   # templates
-  if [[ ${#type_flags[@]} -eq 0 || "${sysz_types[*]}" = *template* ]]; then
+  if [[ "${sysz_types[*]}" = *template* ]]; then
     _sysz_ls template list-unit-files '*@.*'
   fi
 
-  local unit
   # everything from list-unit-files that isn't in list-units or a template
   for mgr in "${sysz_managers[@]}"; do
-    while comm -13 \
+    comm -13 \
       <($sysz_ls_units_cmd --"$mgr" list-units "${type_flags[@]}" | cut -f1 -d' ' | _sysz_clean | sort -u) \
-      <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) |
-      read -r u; do
-      _sysz_debug "unit=$u"
-      _sysz_print_unit none "$mgr" "$unit"
+      <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | while read -r unit; do
+      _sysz_debug "unit=$unit"
+      desc=$(_sysz_ctl --"$mgr" show "$unit" -P Description)
+      _sysz_print_unit none "$mgr" "$unit" "$desc"
     done
   done
 }
@@ -854,7 +861,7 @@ function _sysz_handle_command() {
   local unit
 
   _sysz_debug "pick=$pick"
-  mgr=$(_sysz_mgr "$pick")
+  mgr=$(_sysz_manager_flag "$pick")
   _sysz_debug "mgr=$mgr"
   unit=${pick##* }
   _sysz_debug "unit=$unit"
@@ -876,20 +883,20 @@ function _sysz_handle_command() {
     fi
     ;;
   journal)
-    _sysz_journalctl "$mgr" "$unit" -xe "${sysz_args[@]}"
+    _sysz_journalctl "$mgr" "$unit" -xe "${sysz_ctl_args[@]}"
     ;;
   follow)
     set -x
-    _sysz_journalctl "$mgr" "$unit" -xef "${sysz_args[@]}"
+    _sysz_journalctl "$mgr" "$unit" -xef "${sysz_ctl_args[@]}"
     ;;
   status)
-    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${sysz_args[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${sysz_ctl_args[@]}" -- "$unit"
     ;;
   cat | show)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${sysz_args[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${sysz_ctl_args[@]}" -- "$unit"
     ;;
   *)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${sysz_args[@]}" -- "$unit"
+    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${sysz_ctl_args[@]}" -- "$unit"
     _sysz_sudo_ctl "$mgr" status --no-pager -- "$unit"
     ;;
   esac
@@ -918,7 +925,8 @@ function _sysz_check_states() {
   for state in "${sysz_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
-      _sysz_error "Invalid state: $state"
+      _sysz_error "Unknown state: $state"
+      echo "For a list of valid states, run: systemctl --state=help" >&2
       _sysz_quit 1
     fi
   done
@@ -1016,8 +1024,8 @@ function _sysz_main() {
       _sysz_quit $?
       ;;
     _sysz*)
-      "$@"
-      _sysz_quit $?
+      cmd=$1
+      shift
       ;;
     h | help)
       _sysz_help
@@ -1053,7 +1061,7 @@ function _sysz_main() {
     # systemctl args
     --)
       shift
-      sysz_args=("$@")
+      sysz_ctl_args=("$@")
       break
       ;;
 
@@ -1078,7 +1086,11 @@ function _sysz_main() {
   _sysz_check_types
   _sysz_check_cmds
 
-  _sysz_units_prompt
+  if [[ $cmd ]]; then
+    $cmd "${sysz_ctl_args[@]}"
+  else
+    _sysz_units_prompt
+  fi
 
   # while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
   #   _sysz_cmds_prompt

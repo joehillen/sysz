@@ -1,0 +1,3 @@
+- [ ] parse picked unit from fzf
+- [ ] rename _prompt_fzf
+- [ ] ctrl-a add args
