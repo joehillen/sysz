@@ -182,6 +182,7 @@ EOF
 }
 
 _sysz_fzf_help() {
+  #TODO: more fzf specific keybindings
   cat <<EOF
 Keybindings:
   TAB            Toggle selection.
@@ -334,22 +335,26 @@ function _sysz_journalctl() {
   fi
 }
 
-function _sysz_fzf_cat() {
-  _sysz_ctl "$(_sysz_manager_flag "$1")" cat -- "$2"
+function _sysz_preview_cat() {
+  local mgr
+  local mgr_flag
+  local unit
+  IFS=" " read -r mgr unit desc <<<"$1"
+  mgr_flag=$(_sysz_manager_flag "$mgr")
+  _sysz_ctl "$mgr_flag" cat "$unit"
 }
 
-function _sysz_fzf_unit_preview() {
-  local unit
-  local args
+function _sysz_preview_status() {
   local mgr
-  IFS=" " read -r -a args <<<"$1"
-  mgr=$(_sysz_manager_flag "${args[0]}")
-  unit=${args[1]}
+  local mgr_flag
+  local unit
+  IFS=" " read -r mgr unit desc <<<"$1"
+  mgr_flag=$(_sysz_manager_flag "$mgr")
 
   if [[ $unit = *@.* ]]; then
-    _sysz_fzf_cat "${args[@]}"
+    _sysz_preview_cat "$1"
   else
-    systemctl "$mgr" status --no-pager -- "$unit"
+    systemctl "$mgr_flag" status --no-pager -- "$unit"
   fi
 }
 
@@ -639,52 +644,54 @@ function _sysz_ls_all_units() {
     type_flags+=("--type=$type")
   done
 
-  # failed
-  _sysz_ls failed list-units "${type_flags[@]}" --failed
+  if [[ ${sysz_types[*]} != template ]]; then
+    # failed
+    _sysz_ls failed list-units "${type_flags[@]}" --failed
 
-  # active
-  if [[ ${#type_flags[@]} -gt 0 ]]; then
-    _sysz_ls active list-units "${type_flags[@]}" "${sysz_active_states[@]}"
-  else
-    # active services and timers
-    _sysz_ls active list-units --type=service --type=timer "${sysz_active_states[@]}"
+    # active
+    if [[ ${#type_flags[@]} -gt 0 ]]; then
+      _sysz_ls active list-units "${type_flags[@]}" "${sysz_active_states[@]}"
+    else
+      # active services and timers
+      _sysz_ls active list-units --type=service --type=timer "${sysz_active_states[@]}"
 
-    # other active units
-    _sysz_ls active list-units "${other_types[@]}" "${sysz_active_states[@]}"
+      # other active units
+      _sysz_ls active list-units "${other_types[@]}" "${sysz_active_states[@]}"
+    fi
+
+    # inactive
+    if [[ ${#type_flags[@]} -gt 0 ]]; then
+      _sysz_ls inactive list-units "${type_flags[@]}" --state=inactive
+    else
+      # inactive services and timers
+      _sysz_ls none list-units --type=service --type=timer --state=inactive
+
+      # other inactive units
+      _sysz_ls none list-units "${other_types[@]}" --state=inactive
+    fi
+
+    # not found
+    _sysz_ls not-found list-units "${type_flags[@]}" --state=not-found
+
+    # masked
+    _sysz_ls masked list-units "${type_flags[@]}" --state=masked
   fi
-
-  # inactive
-  if [[ ${#type_flags[@]} -gt 0 ]]; then
-    _sysz_ls inactive list-units "${type_flags[@]}" --state=inactive
-  else
-    # inactive services and timers
-    _sysz_ls none list-units --type=service --type=timer --state=inactive
-
-    # other inactive units
-    _sysz_ls none list-units "${other_types[@]}" --state=inactive
-  fi
-
-  # not found
-  _sysz_ls not-found list-units "${type_flags[@]}" --state=not-found
-
-  # masked
-  _sysz_ls masked list-units "${type_flags[@]}" --state=masked
 
   # templates
-  if [[ "${sysz_types[*]}" = *template* ]]; then
-    _sysz_ls template list-unit-files '*@.*'
-  fi
+  _sysz_ls template list-unit-files "${type_flags[@]}" '*@.*'
 
-  # everything from list-unit-files that isn't in list-units or a template
-  for mgr in "${sysz_managers[@]}"; do
-    comm -13 \
-      <($sysz_ls_units_cmd --"$mgr" list-units "${type_flags[@]}" | cut -f1 -d' ' | _sysz_clean | sort -u) \
-      <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | while read -r unit; do
-      _sysz_debug "unit=$unit"
-      desc=$(_sysz_ctl --"$mgr" show "$unit" -P Description)
-      _sysz_print_unit none "$mgr" "$unit" "$desc"
+  if [[ ${sysz_types[*]} != template ]]; then
+    # everything from list-unit-files that isn't in list-units or a template
+    for mgr in "${sysz_managers[@]}"; do
+      comm -13 \
+        <($sysz_ls_units_cmd --"$mgr" list-units "${type_flags[@]}" | cut -f1 -d' ' | _sysz_clean | sort -u) \
+        <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | while read -r unit; do
+        _sysz_debug "unit=$unit"
+        desc=$(_sysz_ctl --"$mgr" show "$unit" -P Description)
+        _sysz_print_unit none "$mgr" "$unit" "$desc"
+      done
     done
-  done
+  fi
 }
 
 function _sysz_ls_units() {
@@ -718,9 +725,9 @@ function _sysz_units_prompt() {
         --history="$SYSZ_HISTORY" \
         --prompt="Units: " \
         --header '? for keybindings' \
-        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_fzf_help)" \
-        --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_fzf_cat {})" \
-        --preview="SYSZ_DEBUG=false '${BASH_SOURCE[0]}' _sysz_fzf_unit_preview {}" \
+        --bind "?:preview('${BASH_SOURCE[0]}' _sysz_preview_help)" \
+        --bind "ctrl-v:preview('${BASH_SOURCE[0]}' _sysz_preview_cat {})" \
+        --preview="'${BASH_SOURCE[0]}' _sysz_preview_status {}" \
         --preview-window=down |
       _sysz_clean |
       readarray -t picks
@@ -1000,7 +1007,7 @@ function _sysz_main() {
       exit 0
       ;;
     --debug)
-      SYSZ_DEBUG=true
+      export SYSZ_DEBUG=true
       ;;
     -V | --verbose)
       SYSZ_VERBOSE=true
@@ -1015,12 +1022,8 @@ function _sysz_main() {
       ;;
 
     # commands
-    _sysz_fzf_cat)
-      _sysz_fzf_cat "$2"
-      _sysz_quit $?
-      ;;
-    _sysz_fzf_unit_preview)
-      _sysz_fzf_unit_preview "$2"
+    _sysz_preview_*)
+      "$@"
       _sysz_quit $?
       ;;
     _sysz*)
@@ -1033,7 +1036,7 @@ function _sysz_main() {
       ;;
 
     # short command names
-    re)
+    r | re)
       sysz_cmds=(restart)
       ;;
     s)
@@ -1100,6 +1103,7 @@ function _sysz_main() {
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
 _sysz_debug "SYSZ_COLORS=$SYSZ_COLORS"
 
+_sysz_debug "ARGS=$*"
 _sysz_main "$@"
 
 _sysz_quit
