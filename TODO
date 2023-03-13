@@ -1,3 +1,13 @@
-- [ ] parse picked unit from fzf
-- [ ] rename _prompt_fzf
-- [ ] ctrl-a add args
+# TODO
+
+- [ ] list short commands in help
+- [ ] -y option and envvar to not prompt before running commands
+- [ ] SYSZ_FZF_OPTS
+- [ ] show more fzf specific keybindings in help preview
+- [ ] support `--host=[USER@]HOST`
+
+## systemctl args
+
+- [ ] ctrl-a to add args
+- [ ] args prompt from systemctl --help
+- [ ] prompt when argument is require

@@ -182,7 +182,6 @@ EOF
 }
 
 _sysz_fzf_help() {
-  #TODO: more fzf specific keybindings
   cat <<EOF
 Keybindings:
   TAB            Toggle selection.
@@ -219,20 +218,21 @@ $sysz_prog - interactive terminal UI for systemctl
 
 $sysz_prog [OPTS...] [CMD...] [-- ARGS...]
 
-sudo is invoked automatically, if necessary.
+sudo is invoked automatically only if necessary.
 
-If only one unit is chosen, available commands will be presented
-based on the state of the unit (e.g. "start" only shows if unit is "active").
+When no CMD is specified, commands are select after units.
+Only commands that are valid depending on the state of the units will run,
+e.g. "start" will only run on "inactive" units.
 
 OPTS:
-  -u, --user                  Only show --user units [default].
-  --sys, --system             Only show --system units [default].
-  -s STATE, --state STATE     Only show units in STATE (repeatable).
-  -t TYPE, --type TYPE        Only show units of TYPE (repeatable).
-  --no-color                  Disable colors.
-  -V, --verbose               Print the systemctl command.
-  -v, --version               Print the version.
-  -h, --help                  Print this message.
+  -u, --user                  Only show --user units [default]
+  --sys, --system             Only show --system units [default]
+  -s STATE, --state STATE     Only show units in STATE (repeatable)
+  -t TYPE, --type TYPE        Only show units of TYPE (repeatable)
+  --no-color                  Disable colors
+  -V, --verbose               Print the systemctl command
+  -v, --version               Print the version
+  -h, --help                  Print this message
 
 ARGS are passed to the systemctl command for each selected unit.
 
@@ -246,11 +246,11 @@ EOF
 
   cat <<EOF
 Examples:
-  $sysz_prog -u                             User units.
-  $sysz_prog --sys -s active                Active system units.
-  $sysz_prog --user --state failed          Failed user units.
-  $sysz_prog --type socket                  Sockets.
-  $sysz_prog --state=inactive -t service    Inactive services.
+  $sysz_prog -u                             User units
+  $sysz_prog --sys -s active                Active system units
+  $sysz_prog --user --state failed          Failed user units
+  $sysz_prog --type socket                  Sockets
+  $sysz_prog --state=inactive -t service    Inactive services
 EOF
 
 }
