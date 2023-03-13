@@ -1,4 +1,4 @@
 pkg/
 src/
 *.tar.zst
-*.debug
+*.log

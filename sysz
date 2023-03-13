@@ -18,7 +18,7 @@ declare -r MIN_FZF_VERSION=0.27.1
 sysz_prog=$(basename "$0")
 declare -r sysz_prog
 declare -r sysz_version=2.0.0-beta
-sysz_debug_file=debug.$(date -Iminutes).log
+sysz_debug_file=debug.$(date -Iseconds).log
 declare -r sysz_debug_file
 
 # variables
@@ -43,7 +43,6 @@ esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 if [[ $SYSZ_COLORS -eq 1 ]]; then
   declare -rA sysz_colors=(
-    [none]=''
     [reset]=$'\e[0m'
     [red]=$'\e[31m'
     [green]=$'\e[32m'
@@ -55,7 +54,6 @@ if [[ $SYSZ_COLORS -eq 1 ]]; then
   )
 else
   declare -rA sysz_colors=(
-    [none]=''
     [reset]=''
     [red]=''
     [green]=''
@@ -102,8 +100,6 @@ declare -rA sysz_state_colors=(
 
   # template
   [template]=${sysz_colors[cyan]}
-
-  [none]=''
 )
 
 # Data Structures
@@ -190,7 +186,7 @@ _sysz_fzf_help() {
 Keybindings:
   TAB            Toggle selection.
   ctrl-r         Run daemon-reload. Selection is reset.
-  ctrl-x         Switch between user and system managers. Selection is reset.
+  ctrl-m         Switch between user and system managers. Selection is reset.
   ctrl-s         Filter by states. Selection is reset.
   ctrl-t         Filter by types. Selection is reset.
   ctrl-v         'cat' the selected units in the preview window.
@@ -287,21 +283,41 @@ function _sysz_verbose() {
   _sysz_debug "> $*"
   "$@"
   code=$?
-  [[ $code != 0 ]] && _sysz_error "Failed: $*"
-  return "$code"
+  _sysz_debug "code=$code"
+  return $?
 }
 
 function _sysz_ctl() {
   _sysz_verbose systemctl "$@"
 }
 
+function _sysz_manager_flag() {
+  case ${1%% *} in
+  '[u'* | user* | --user*)
+    echo --user
+    ;;
+  '[s'* | system* | --system*)
+    echo --system
+    ;;
+  *)
+    _sysz_error "Unknown manager: $1"
+    _sysz_quit 1
+    ;;
+  esac
+}
+
 function _sysz_sudo_ctl() {
-  if [[ $EUID -ne 0 && $1 = --system ]]; then
+  local manager_flag
+  manager_flag=$(_sysz_manager_flag "$1")
+  shift
+  if [[ $EUID -ne 0 && $manager_flag = --system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo -E systemctl "$@" || exitcode=$?
+    _sysz_verbose sudo -E systemctl "$manager_flag" "$@" || code=$?
   else
-    _sysz_verbose systemctl "$@" || exitcode=$?
+    _sysz_verbose systemctl "$manager_flag" "$@" || code=$?
   fi
+  [[ $code != 0 ]] && _sysz_error "Failed: $*"
+  return "$code"
 }
 
 function _sysz_journalctl() {
@@ -318,21 +334,6 @@ function _sysz_journalctl() {
   fi
 }
 
-function _sysz_mgr() {
-  case ${1%% *} in
-  '[u'* | user* | --user*)
-    echo --user
-    ;;
-  '[s'* | system* | --system*)
-    echo --system
-    ;;
-  *)
-    _sysz_error "Unknown manager: $1"
-    _sysz_quit 1
-    ;;
-  esac
-}
-
 function _sysz_fzf_cat() {
   _sysz_ctl "$(_sysz_mgr "$1")" cat -- "$2"
 }
@@ -342,7 +343,7 @@ function _sysz_fzf_unit_preview() {
   local args
   local mgr
   IFS=" " read -r -a args <<<"$1"
-  mgr=$(_sysz_mgr "${args[0]}")
+  mgr=$(_sysz_manager_flag "${args[0]}")
   unit=${args[1]}
 
   if [[ $unit = *@.* ]]; then
@@ -375,71 +376,6 @@ function _sysz_print_unit() {
   echo
 }
 
-declare -r sysz_ls_units_cmd="_sysz_ctl --plain --no-pager --no-legend --full --all"
-
-function _sysz_ls() {
-  local color=$1
-  shift
-  local inactive
-  [[ $* = *"--state=inactive"* ]] && inactive=true
-
-  for mgr in "${sysz_managers[@]}"; do
-    $sysz_ls_units_cmd --"$mgr" "$@" | _sysz_clean |
-      while read -r unit load active sub desc; do
-        if [[ $inactive && $load = not-found ]]; then
-          # don't include "not-found" when showing inactive units
-          continue
-        fi
-        _sysz_print_unit "$color" "$mgr" "$unit" "$desc"
-      done
-  done
-}
-
-function _sysz_all_units() {
-  active_states=(
-    --state=active
-    --state=reloading
-    --state=activating
-    --state=deactivating
-    --state=running
-  )
-  systemctl --type=help | grep -Ev ':|service|timer' | sed 's/^/--type=/' | readarray -t other_types
-
-  # failed
-  _sysz_ls failed list-units --failed
-
-  # active services and timers
-  _sysz_ls active list-units --type=service --type=timer "${active_states[@]}"
-
-  # other active units
-  _sysz_ls active list-units "${other_types[@]}" "${active_states[@]}"
-
-  # inactive services and timers
-  _sysz_ls none list-units --type=service --type=timer --state=inactive
-
-  # other inactive units
-  _sysz_ls none list-units "${other_types[@]}" --state=inactive
-
-  # not found
-  _sysz_ls not-found list-units --state=not-found
-
-  # masked
-  _sysz_ls masked list-units --state=masked
-
-  # templates
-  _sysz_ls template list-unit-files '*@.*'
-
-  # everything from list-unit-files that isn't in list-units or a template
-  for mgr in "${sysz_managers[@]}"; do
-    while comm -13 \
-      <($sysz_ls_units_cmd list-units | cut -f1 -d' ' | _sysz_clean | sort -u) \
-      <($sysz_ls_units_cmd list-unit-files '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) |
-      read -r unit; do
-      _sysz_print_unit none "$mgr" "$unit"
-    done
-  done
-}
-
 function _sysz_fzf() {
   local color_arg
   _sysz_debug "_sysz_fzf"
@@ -459,43 +395,86 @@ function _sysz_fzf() {
     "$@"
 }
 
-function _sysz_mgr_prompt() {
+function _sysz_default_managers() {
+  # root does not have user units
   if [[ $EUID -eq 0 ]]; then
-    echo system
-    return
+    sysz_managers=(system)
+  else
+    sysz_managers=(user system)
   fi
+}
 
+function _sysz_managers_prompt() {
+  _sysz_debug "_sysz_mangers_prompt"
+  local -a managers
   (
-    echo user
+    if [[ $EUID -ne 0 ]]; then
+      echo '(all)'
+      echo user
+    fi
     echo system
   ) |
     _sysz_fzf \
       --multi \
       --no-info \
       --prompt="Manager: " |
-    readarray -t sysz_managers || _sysz_quit $?
+    readarray -t managers || _sysz_quit $?
 
+  _sysz_debug "managers=${managers[*]}"
+
+  if [[ ${#managers[@]} -eq 0 ]]; then
+    if [[ ${#sysz_managers[@]} -eq 0 ]]; then
+      _sysz_default_managers
+    fi
+    return
+  fi
+
+  sysz_managers=()
+  for mgr in "${managers[@]}"; do
+    case "$mgr" in
+    '(all)')
+      _sysz_default_managers
+      break
+      ;;
+    user)
+      sysz_managers+=(user)
+      ;;
+    system)
+      sysz_managers+=(system)
+      ;;
+    esac
+  done
   _sysz_debug "sysz_managers=${sysz_managers[*]}"
 }
 
 function _sysz_daemon_reload_prompt() {
-  local managers
+  local -a managers
   (
     if [[ $EUID -ne 0 ]]; then
+      echo '(all)'
       echo 'user'
     fi
     echo 'system'
   ) |
     _sysz_fzf \
       --multi \
+      --select-1 \
       --no-info \
       --prompt="daemon-reload: " |
-    readarray -t managers || _sysz_quit $?
+    readarray -t managers
 
   _sysz_debug "daemon-reload=${managers[*]}"
 
+  if [[ ${#managers[@]} -eq 0 ]]; then
+    return
+  fi
+
+  if [[ ${managers[*]} = *'(all)'* ]]; then
+    managers=(user system)
+  fi
+
   for mgr in "${managers[@]}"; do
-    _sysz_sudo_ctl "$(_sysz_mgr "$mgr")" daemon-reload >&2 || {
+    _sysz_sudo_ctl "$mgr" daemon-reload >&2 || {
       _sysz_error "daemon-reload failed"
       _sysz_quit 1
     }
@@ -521,10 +500,9 @@ function _sysz_ls_states() {
   # hide 'ing' because they are transient states
   # which you probably aren't looking for
   systemctl --state=help |
-    grep -v ':' |
-    grep -Ev "^$(
-      printf '%s|' "${prefered[@]:0:${#prefered[@]}-1}"
-      echo "${prefered[*]: -1}"
+    grep -Ev "$(
+      printf '%s|' "${prefered[@]}"
+      echo ':'
     )$" |
     sort -u |
     grep -v '^$'
@@ -547,6 +525,7 @@ function _sysz_states_prompt() {
       return
     fi
   done
+
   _sysz_check_states
 }
 
@@ -562,21 +541,25 @@ function _sysz_ls_types() {
 }
 
 function _sysz_types_prompt() {
+  local types=()
   _sysz_ls_types |
     _sysz_fzf \
       --multi \
       --no-sort \
       --prompt="Types: " |
-    readarray -t sysz_types || _sysz_quit $?
+    readarray -t types || _sysz_quit $?
 
-  _sysz_debug "Picked types: ${sysz_types[*]}"
+  if [[ ${#types[@]} -gt 0 ]]; then
+    sysz_types=()
+    for type in "${types[@]}"; do
+      if [[ $type = '(all)' ]]; then
+        sysz_types=()
+        return
+      fi
+      sysz_types+=("$type")
+    done
+  fi
 
-  for type in "${sysz_types[@]}"; do
-    if [[ $type = '(all)' ]]; then
-      sysz_types=()
-      return
-    fi
-  done
   _sysz_check_types
 }
 
@@ -611,14 +594,110 @@ function _sysz_cmd() {
   fi
 }
 
-function _sysz_ls_units() {
-  if [[ ${#sysz_states[@]} -eq 0 ]]; then
-    _sysz_all_units
-    return
-  fi
+declare -r sysz_ls_units_cmd="_sysz_ctl --plain --no-pager --no-legend --full --all"
+
+function _sysz_ls() {
+  local color=$1
+  shift
+  local inactive
+  [[ $* = *"--state=inactive"* ]] && inactive=true
+
+  for mgr in "${sysz_managers[@]}"; do
+    $sysz_ls_units_cmd --"$mgr" "$@" | _sysz_clean |
+      while read -r unit load active sub desc; do
+        if [[ $inactive && $load = not-found ]]; then
+          # don't include "not-found" when showing inactive units
+          continue
+        fi
+        _sysz_print_unit "$color" "$mgr" "$unit" "$desc"
+      done
+  done
 }
 
-function _sysz_prompt_units() {
+declare -ra sysz_active_states=(
+  "--state=active"
+  "--state=reloading"
+  "--state=activating"
+  "--state=deactivating"
+  "--state=running"
+)
+
+function _sysz_ls_all_units() {
+  systemctl --type=help | grep -Ev ':|service|timer' | sed 's/^/--type=/' | readarray -t other_types
+
+  local type_flags=()
+  for type in "${sysz_types[@]}"; do
+    [[ $type = 'template' ]] && continue
+    type_flags+=("--type=$type")
+  done
+
+  # failed
+  _sysz_ls failed list-units "${type_flags[@]}" --failed
+
+  # active
+  if [[ ${#type_flags[@]} -gt 0 ]]; then
+    _sysz_ls active list-units "${type_flags[@]}" "${sysz_active_states[@]}"
+  else
+    # active services and timers
+    _sysz_ls active list-units --type=service --type=timer "${sysz_active_states[@]}"
+
+    # other active units
+    _sysz_ls active list-units "${other_types[@]}" "${sysz_active_states[@]}"
+  fi
+
+  # inactive
+  if [[ ${#type_flags[@]} -gt 0 ]]; then
+    _sysz_ls inactive list-units "${type_flags[@]}" --state=inactive
+  else
+    # inactive services and timers
+    _sysz_ls none list-units --type=service --type=timer --state=inactive
+
+    # other inactive units
+    _sysz_ls none list-units "${other_types[@]}" --state=inactive
+  fi
+
+  # not found
+  _sysz_ls not-found list-units "${type_flags[@]}" --state=not-found
+
+  # masked
+  _sysz_ls masked list-units "${type_flags[@]}" --state=masked
+
+  # templates
+  if [[ ${#type_flags[@]} -eq 0 || "${sysz_types[*]}" = *template* ]]; then
+    _sysz_ls template list-unit-files '*@.*'
+  fi
+
+  local unit
+  # everything from list-unit-files that isn't in list-units or a template
+  for mgr in "${sysz_managers[@]}"; do
+    while comm -13 \
+      <($sysz_ls_units_cmd --"$mgr" list-units "${type_flags[@]}" | cut -f1 -d' ' | _sysz_clean | sort -u) \
+      <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) |
+      read -r u; do
+      _sysz_debug "unit=$u"
+      _sysz_print_unit none "$mgr" "$unit"
+    done
+  done
+}
+
+function _sysz_ls_units() {
+  if [[ ${#sysz_states[@]} -eq 0 ]]; then
+    _sysz_ls_all_units
+    return
+  fi
+
+  local type_flags=()
+  for type in "${sysz_types[@]}"; do
+    [[ $type = 'template' ]] && continue
+    type_flags+=("--type=$type")
+  done
+
+  for state in "${sysz_states[@]}"; do
+    _sysz_ls "$state" list-units --state="$state" "${type_flags[@]}"
+  done
+}
+
+function _sysz_units_prompt() {
   local -a picks
   local -a results
   local key
@@ -628,7 +707,7 @@ function _sysz_prompt_units() {
         --multi \
         --tiebreak=begin,end,index \
         --nth=2.. \
-        --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
+        --expect=ctrl-r,ctrl-s,ctrl-m,ctrl-t \
         --history="$SYSZ_HISTORY" \
         --prompt="Units: " \
         --header '? for keybindings' \
@@ -666,7 +745,7 @@ function _sysz_prompt_units() {
   _sysz_debug "sysz_units=${sysz_units[*]}"
 }
 
-function _sysz_prompt_cmds() {
+function _sysz_cmds_prompt() {
   if [[ ${#sysz_units[@]} -gt 1 ]]; then
     printf -v preview '%s\n' "${picks[*]}"
     _sysz_debug "preview=$preview"
@@ -709,37 +788,37 @@ function _sysz_prompt_cmds() {
     --preview-window=80% < <(
       # restart
       [[ $multi = true || $active_state = active ]] &&
-        _sysz_cmd "$red" restart
+        _sysz_cmd red restart
       # start
       [[ $multi = true || $active_state != active ]] &&
-        _sysz_cmd "$green" start
+        _sysz_cmd green start
       # stop
       [[ $multi = true || $active_state = active ]] &&
-        _sysz_cmd "$red" stop
+        _sysz_cmd red stop
       # enable
       [[ $multi = true || $unit_file_state != enabled ]] &&
-        _sysz_cmd "$green" enable
+        _sysz_cmd green enable
       # disable
       [[ $multi = true || $unit_file_state = enabled ]] &&
-        _sysz_cmd "$red" disable
+        _sysz_cmd red disable
 
-      _sysz_cmd "$reset" status
-      _sysz_cmd "$reset" journal
-      _sysz_cmd "$reset" follow
+      _sysz_cmd reset status
+      _sysz_cmd reset journal
+      _sysz_cmd reset follow
 
       # reload
       [[ $multi = true || $can_reload = yes ]] &&
-        _sysz_cmd "$gray" reload
+        _sysz_cmd gray reload
 
       # mask
       [[ $multi = true || ($unit_file_state != masked && $load_state != masked) ]] &&
-        _sysz_cmd "$red" mask
+        _sysz_cmd red mask
       [[ $multi = true || $unit_file_state = masked || $load_state = masked ]] &&
-        _sysz_cmd "$green" unmask
+        _sysz_cmd green unmask
 
-      _sysz_cmd "$reset" cat
-      _sysz_cmd "$reset" edit
-      _sysz_cmd "$reset" show
+      _sysz_cmd reset cat
+      _sysz_cmd reset edit
+      _sysz_cmd reset show
     ) || _sysz_quit $?
 }
 
@@ -760,8 +839,8 @@ function _sysz_handle_key() {
     _sysz_states_prompt
     return
     ;;
-  ctrl-x)
-    _sysz_mgr_prompt
+  ctrl-m)
+    _sysz_managers_prompt
     return
     ;;
   esac
@@ -823,7 +902,7 @@ function _sysz_do_commands() {
   if [[ $CMD ]]; then
     cmds=("$CMD")
   else
-    _sysz_prompt_commands "${picks[@]}" | readarray -t cmds
+    _sysz_cmds_prompt "${picks[@]}" | readarray -t cmds
   fi
   _sysz_debug "cmds=${cmds[*]}"
 
@@ -835,6 +914,7 @@ function _sysz_do_commands() {
 }
 
 function _sysz_check_states() {
+  _sysz_debug "sysz_states=${sysz_states[*]}"
   for state in "${sysz_states[@]}"; do
     _sysz_debug "state=$state"
     if [[ -n $state ]] && ! systemctl --state=help | grep -v : | grep -q "^${state}$"; then
@@ -845,8 +925,8 @@ function _sysz_check_states() {
 }
 
 function _sysz_check_types() {
+  _sysz_debug "sysz_types=${sysz_types[*]}"
   for unit_type in "${sysz_types[@]}"; do
-    _sysz_debug "unit_type=$unit_type"
     if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
       _sysz_quit 1
@@ -879,14 +959,8 @@ function _sysz_main() {
   mkdir -p "$(dirname "$SYSZ_HISTORY")"
   touch "$SYSZ_HISTORY" || _sysz_error "Unable to write to $SYSZ_HISTORY"
 
-  # root does not have user units
-  if [[ $EUID -eq 0 ]]; then
-    sysz_managers=(system)
-  else
-    sysz_managers=(user system)
-  fi
+  _sysz_default_managers
 
-  # TODO: combine these into one loop
   while [[ -n $1 ]]; do
     case $1 in
     # options
@@ -933,6 +1007,14 @@ function _sysz_main() {
       ;;
 
     # commands
+    _sysz_fzf_cat)
+      _sysz_fzf_cat "$2"
+      _sysz_quit $?
+      ;;
+    _sysz_fzf_unit_preview)
+      _sysz_fzf_unit_preview "$2"
+      _sysz_quit $?
+      ;;
     _sysz*)
       "$@"
       _sysz_quit $?
@@ -996,10 +1078,10 @@ function _sysz_main() {
   _sysz_check_types
   _sysz_check_cmds
 
-  _sysz_prompt_units
+  _sysz_units_prompt
 
   # while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
-  #   _sysz_prompt_cmds
+  #   _sysz_cmds_prompt
   # done
 }
 
