@@ -181,7 +181,7 @@ OPTS:
 EOF
 }
 
-_sysz_fzf_help() {
+function _sysz_fzf_help() {
   cat <<EOF
 Keybindings:
   TAB            Toggle selection.
