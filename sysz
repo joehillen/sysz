@@ -186,7 +186,7 @@ function _sysz_fzf_help() {
 Keybindings:
   TAB            Toggle selection.
   ctrl-r         Run daemon-reload. Selection is reset.
-  ctrl-m         Switch between user and system managers. Selection is reset.
+  ctrl-x         Switch between user and system managers. Selection is reset.
   ctrl-s         Filter by states. Selection is reset.
   ctrl-t         Filter by types. Selection is reset.
   ctrl-v         'cat' the selected units in the preview window.
@@ -721,7 +721,7 @@ function _sysz_units_prompt() {
         --multi \
         --tiebreak=begin,end,index \
         --nth=2.. \
-        --expect=ctrl-r,ctrl-s,ctrl-m,ctrl-t \
+        --expect=ctrl-r,ctrl-s,ctrl-x,ctrl-t \
         --history="$SYSZ_HISTORY" \
         --prompt="Units: " \
         --header '? for keybindings' \
@@ -752,9 +752,9 @@ function _sysz_units_prompt() {
   for result in "${results[@]}"; do
     _sysz_debug "result=$result"
     # read the first 2 words and throw away the rest
-    IFS=" " read -r -a words <<<"$result"
+    read -r mgr unit rest <<<"$result"
     # picks are of the form: [s] foo.service
-    sysz_units+=("${words[0]} ${words[1]}")
+    sysz_units+=("$mgr $unit")
   done
   _sysz_debug "sysz_units=${sysz_units[*]}"
 }
@@ -853,9 +853,12 @@ function _sysz_handle_key() {
     _sysz_states_prompt
     return
     ;;
-  ctrl-m)
+  ctrl-x)
     _sysz_managers_prompt
     return
+    ;;
+  esc)
+    _sysz_quit 0
     ;;
   esac
   return 1
