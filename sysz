@@ -265,6 +265,11 @@ function _sysz_quit() {
 function _sysz_color() {
   local color=$1
   shift
+  if [[ $SYSZ_COLORS -eq 0 ]]; then
+    echo "$*"
+    return
+  fi
+
   echo -en "${sysz_colors[$color]}"
   echo -n "$*"
   echo -e "${sysz_colors[reset]}"
@@ -358,10 +363,6 @@ function _sysz_preview_status() {
   fi
 }
 
-function _sysz_show() {
-  _sysz_ctl "$(_sysz_manager_flag "$1")" show "${1##* }" -p "$2" --value
-}
-
 function _sysz_clean() {
   # remove all colors and control characters from stdin
   sed -e 's/\x1b\[[0-9;]*m//g'
@@ -373,8 +374,12 @@ function _sysz_print_unit() {
   local unit=$3
   local desc=$4
 
-  echo -n "[${mgr:0:1}] "
-  echo -en "${sysz_state_colors[$state]}"
+  if [[ $mgr = '['* ]]; then
+    echo -n "$mgr"
+  else
+    echo -n "[${mgr:0:1}]"
+  fi
+  echo -en " ${sysz_state_colors[$state]}"
   echo -n "$unit"
   echo -en "${sysz_colors[reset]}"
   [[ $desc ]] && echo -n " - $desc"
@@ -734,60 +739,41 @@ function _sysz_units_prompt() {
 
     # The first result from fzf is always the key
     key=${picks[0]}
-    results=("${picks[@]:1}")
+    declare -ga sysz_units=("${picks[@]:1}")
+    _sysz_debug "sysz_units=${sysz_units[*]}"
 
     if [[ $key ]]; then
       _sysz_handle_key "$key"
       continue
     fi
 
-    if [[ ${#results[@]} -eq 0 ]]; then
-      _sysz_debug "no results"
+    if [[ ${#sysz_units[@]} -eq 0 ]]; then
       _sysz_quit 1
     fi
     break
   done
 
-  # results look like '[s] foo.service - description'
-  for result in "${results[@]}"; do
-    _sysz_debug "result=$result"
-    # read the first 2 words and throw away the rest
-    read -r mgr unit rest <<<"$result"
-    # picks are of the form: [s] foo.service
-    sysz_units+=("$mgr $unit")
+}
+
+function _sysz_preview_units() {
+  for pick in "$@"; do
+    read -r mgr unit dash desc <<<"$pick"
+    if [[ $unit = *@.* ]]; then
+      state=template
+    else
+      state=$(_sysz_pick_prop "$pick" ActiveState)
+    fi
+    _sysz_print_unit "$state" "$mgr" "$unit" "$desc"
   done
-  _sysz_debug "sysz_units=${sysz_units[*]}"
 }
 
 function _sysz_cmds_prompt() {
+  local preview_args
   if [[ ${#sysz_units[@]} -gt 1 ]]; then
-    printf -v preview '%s\n' "${picks[*]}"
-    _sysz_debug "preview=$preview"
-    preview_cmd="echo -n '$preview'"
+    printf -v preview_args "'%s' " "${sysz_units[@]}"
+    preview_cmd="'${BASH_SOURCE[0]}' _sysz_preview_units $preview_args"
     _sysz_debug "preview_cmd=$preview_cmd"
     multi=true
-  else
-    pick=${picks[0]}
-    _sysz_debug "pick=$pick"
-
-    # TODO: Move this to after the command is selected
-    #pick=$(_sysz_tmpl_prompt "$pick")
-
-    # Get states to filter the command options
-    active_state=$(_sysz_show "$pick" ActiveState)
-    _sysz_debug "active_state=$active_state"
-    load_state=$(_sysz_show "$pick" LoadState)
-    _sysz_debug "load_state=$load_state"
-    [[ $load_state = not-found ]] && {
-      _sysz_error "$pick not found"
-      _sysz_quit 1
-    }
-    unit_file_state=$(_sysz_show "$pick" UnitFileState)
-    _sysz_debug "unit_file_state=$unit_file_state"
-    can_reload=$(_sysz_show "$pick" CanReload)
-    _sysz_debug "can_reload=$can_reload"
-    preview_cmd="'${BASH_SOURCE[0]}' _sysz_fzf_unit_preview '$pick'"
-    _sysz_debug "preview_cmd=$preview_cmd"
   fi
 
   _sysz_debug "multi=$multi"
@@ -862,6 +848,23 @@ function _sysz_handle_key() {
     ;;
   esac
   return 1
+}
+
+# memoized property lookups
+function _sysz_pick_prop() {
+  local pick=$1
+  local prop=$2
+  declare -A -g "sysz_prop_${prop}"
+  local -n store=sysz_prop_${prop}
+  local value
+  if [[ -z ${store[$pick]} ]]; then
+    read -r mgr unit rest <<<"$1"
+    value=$(_sysz_ctl "$(_sysz_manager_flag "$mgr")" show "$unit" -p "$prop" --value)
+    store["$pick"]=$value
+  else
+    value=${store[$pick]}
+  fi
+  echo "$value"
 }
 
 function _sysz_handle_command() {
@@ -945,7 +948,8 @@ function _sysz_check_states() {
 function _sysz_check_types() {
   _sysz_debug "sysz_types=${sysz_types[*]}"
   for unit_type in "${sysz_types[@]}"; do
-    if [[ -n $unit_type && $unit_type != template ]] && ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
+    if [[ -n $unit_type && $unit_type != template ]] &&
+      ! systemctl --type=help | tail -n +2 | grep -q "^${unit_type}$"; then
       _sysz_error "Invalid type: $unit_type"
       _sysz_quit 1
     fi
@@ -1098,9 +1102,7 @@ function _sysz_main() {
     _sysz_units_prompt
   fi
 
-  # while [[ ${#sysz_cmds[@]} -eq 0 ]]; do
-  #   _sysz_cmds_prompt
-  # done
+  _sysz_cmds_prompt
 }
 
 _sysz_debug "SYSZ_VERBOSE=$SYSZ_VERBOSE"
