@@ -42,7 +42,7 @@ case "$SYSZ_COLORS" in
 esac
 export SYSTEMD_COLORS=${SYSTEMD_COLORS:-$SYSZ_COLORS}
 if [[ $SYSZ_COLORS -eq 1 ]]; then
-  declare -rA sysz_colors=(
+  declare -grA sysz_colors=(
     [reset]=$'\e[0m'
     [red]=$'\e[31m'
     [green]=$'\e[32m'
@@ -53,7 +53,7 @@ if [[ $SYSZ_COLORS -eq 1 ]]; then
     [gray]=$'\e[37m'
   )
 else
-  declare -rA sysz_colors=(
+  declare -grA sysz_colors=(
     [reset]=''
     [red]=''
     [green]=''
@@ -68,12 +68,12 @@ export SYSZ_VERBOSE=${SYSZ_VERBOSE:-false}
 export SYSZ_DEBUG=${SYSZ_DEBUG:-false}
 
 # global variables
-declare -a sysz_cmds
-declare -a sysz_ctl_args
+declare -ga sysz_cmds
+declare -ga sysz_ctl_args
 declare exitcode=0
-declare -a sysz_managers
-declare -a sysz_states
-declare -a sysz_types
+declare -ga sysz_mgrs
+declare -ga sysz_states
+declare -ga sysz_types
 
 declare -rA sysz_state_colors=(
   # failed
@@ -111,7 +111,7 @@ declare -rA sysz_state_colors=(
 #     ActiveState
 #     UnitFileState
 #     CanReload
-#     Manager
+#     mgr
 
 function __max_len() {
   local max=0
@@ -164,6 +164,21 @@ function __values() {
   echo
 }
 
+function _sysz_cache() {
+  local cache_name=$1
+  shift
+  local key=$1
+  shift
+  declare -gA "sysz_cache_${cache_name}"
+  local -n cache=sysz_cache_${cache_name}
+  value=${cache[$key]}
+  if [[ -z $value ]]; then
+    value=$("$@")
+    cache[$key]=$value
+  fi
+  echo "$value"
+}
+
 function _sysz_short_help() {
   cat <<EOF
 $sysz_prog [OPTS...] [CMD...] [-- ARGS...]
@@ -186,7 +201,7 @@ function _sysz_fzf_help() {
 Keybindings:
   TAB            Toggle selection.
   ctrl-r         Run daemon-reload. Selection is reset.
-  ctrl-x         Switch between user and system managers. Selection is reset.
+  ctrl-x         Switch between user and system mgrs. Selection is reset.
   ctrl-s         Filter by states. Selection is reset.
   ctrl-t         Filter by types. Selection is reset.
   ctrl-v         'cat' the selected units in the preview window.
@@ -297,30 +312,30 @@ function _sysz_ctl() {
   _sysz_verbose systemctl "$@"
 }
 
-function _sysz_manager_flag() {
+function _sysz_mgr_fullname() {
   case ${1%% *} in
-  '[u'* | user* | --user*)
-    echo --user
+  u | '[u'* | user* | --user*)
+    echo user
     ;;
-  '[s'* | system* | --system*)
-    echo --system
+  s | '[s'* | system* | --system*)
+    echo system
     ;;
   *)
-    _sysz_error "Unknown manager: $1"
+    _sysz_error "Unknown mgr: $1"
     _sysz_quit 1
     ;;
   esac
 }
 
 function _sysz_sudo_ctl() {
-  local manager_flag
-  manager_flag=$(_sysz_manager_flag "$1")
+  local mgr_name
+  mgr_name=$(_sysz_mgr_fullname "$1")
   shift
-  if [[ $EUID -ne 0 && $manager_flag = --system ]]; then
+  if [[ $EUID -ne 0 && $mgr_name = system ]]; then
     # only run sudo if we aren't root and it's a system unit
-    _sysz_verbose sudo -E systemctl "$manager_flag" "$@" || code=$?
+    _sysz_verbose sudo -E systemctl --"$mgr_name" "$@" || code=$?
   else
-    _sysz_verbose systemctl "$manager_flag" "$@" || code=$?
+    _sysz_verbose systemctl --"$mgr_name" "$@" || code=$?
   fi
   [[ $code != 0 ]] && _sysz_error "Failed: $*"
   return "$code"
@@ -342,24 +357,24 @@ function _sysz_journalctl() {
 
 function _sysz_preview_cat() {
   local mgr
-  local mgr_flag
+  local mgr_name
   local unit
   IFS=" " read -r mgr unit desc <<<"$1"
-  mgr_flag=$(_sysz_manager_flag "$mgr")
-  _sysz_ctl "$mgr_flag" cat "$unit"
+  mgr_name=$(_sysz_mgr_fullname "$mgr")
+  _sysz_ctl --"$mgr_name" cat "$unit"
 }
 
 function _sysz_preview_status() {
   local mgr
-  local mgr_flag
+  local mgr_name
   local unit
   IFS=" " read -r mgr unit desc <<<"$1"
-  mgr_flag=$(_sysz_manager_flag "$mgr")
+  mgr_name=$(_sysz_mgr_fullname "$mgr")
 
   if [[ $unit = *@.* ]]; then
     _sysz_preview_cat "$1"
   else
-    systemctl "$mgr_flag" status --no-pager -- "$unit"
+    systemctl --"$mgr_name" status --no-pager -- "$unit"
   fi
 }
 
@@ -374,11 +389,8 @@ function _sysz_print_unit() {
   local unit=$3
   local desc=$4
 
-  if [[ $mgr = '['* ]]; then
-    echo -n "$mgr"
-  else
-    echo -n "[${mgr:0:1}]"
-  fi
+  mgr_name=$(_sysz_mgr_fullname "$mgr")
+  echo -n "[${mgr_name:0:1}]"
   echo -en " ${sysz_state_colors[$state]}"
   echo -n "$unit"
   echo -en "${sysz_colors[reset]}"
@@ -405,18 +417,18 @@ function _sysz_fzf() {
     "$@"
 }
 
-function _sysz_default_managers() {
+function _sysz_default_mgrs() {
   # root does not have user units
   if [[ $EUID -eq 0 ]]; then
-    sysz_managers=(system)
+    sysz_mgrs=(system)
   else
-    sysz_managers=(user system)
+    sysz_mgrs=(user system)
   fi
 }
 
-function _sysz_managers_prompt() {
+function _sysz_mgrs_prompt() {
   _sysz_debug "_sysz_mangers_prompt"
-  local -a managers
+  local -a mgrs
   (
     if [[ $EUID -ne 0 ]]; then
       echo '(all)'
@@ -427,38 +439,38 @@ function _sysz_managers_prompt() {
     _sysz_fzf \
       --multi \
       --no-info \
-      --prompt="Manager: " |
-    readarray -t managers || _sysz_quit $?
+      --prompt="mgr: " |
+    readarray -t mgrs || _sysz_quit $?
 
-  _sysz_debug "managers=${managers[*]}"
+  _sysz_debug "mgrs=${mgrs[*]}"
 
-  if [[ ${#managers[@]} -eq 0 ]]; then
-    if [[ ${#sysz_managers[@]} -eq 0 ]]; then
-      _sysz_default_managers
+  if [[ ${#mgrs[@]} -eq 0 ]]; then
+    if [[ ${#sysz_mgrs[@]} -eq 0 ]]; then
+      _sysz_default_mgrs
     fi
     return
   fi
 
-  sysz_managers=()
-  for mgr in "${managers[@]}"; do
+  sysz_mgrs=()
+  for mgr in "${mgrs[@]}"; do
     case "$mgr" in
     '(all)')
-      _sysz_default_managers
+      _sysz_default_mgrs
       break
       ;;
     user)
-      sysz_managers+=(user)
+      sysz_mgrs+=(user)
       ;;
     system)
-      sysz_managers+=(system)
+      sysz_mgrs+=(system)
       ;;
     esac
   done
-  _sysz_debug "sysz_managers=${sysz_managers[*]}"
+  _sysz_debug "sysz_mgrs=${sysz_mgrs[*]}"
 }
 
 function _sysz_daemon_reload_prompt() {
-  local -a managers
+  local -a mgrs
   (
     if [[ $EUID -ne 0 ]]; then
       echo '(all)'
@@ -471,20 +483,20 @@ function _sysz_daemon_reload_prompt() {
       --select-1 \
       --no-info \
       --prompt="daemon-reload: " |
-    readarray -t managers
+    readarray -t mgrs
 
-  _sysz_debug "daemon-reload=${managers[*]}"
+  _sysz_debug "daemon-reload=${mgrs[*]}"
 
-  if [[ ${#managers[@]} -eq 0 ]]; then
+  if [[ ${#mgrs[@]} -eq 0 ]]; then
     return
   fi
 
-  if [[ ${managers[*]} = *'(all)'* ]]; then
-    managers=(user system)
+  if [[ ${mgrs[*]} = *'(all)'* ]]; then
+    mgrs=(user system)
   fi
 
-  for mgr in "${managers[@]}"; do
-    _sysz_sudo_ctl "$mgr" daemon-reload >&2 || {
+  for mgr in "${mgrs[@]}"; do
+    _sysz_sudo_ctl --"$mgr" daemon-reload >&2 || {
       _sysz_error "daemon-reload failed"
       _sysz_quit 1
     }
@@ -607,18 +619,21 @@ function _sysz_cmd() {
 declare -r sysz_ls_units_cmd="_sysz_ctl --plain --no-pager --no-legend --full --all"
 
 function _sysz_ls() {
-  local color=$1
+  local state=$1
   shift
   local inactive
   [[ $* = *"--state=inactive"* ]] && inactive=true
 
-  for mgr in "${sysz_managers[@]}"; do
+  for mgr in "${sysz_mgrs[@]}"; do
     $sysz_ls_units_cmd --"$mgr" "$@" | _sysz_clean |
       while read -r unit load active sub desc; do
+
+        _sysz_cache unit_state "${mgr:0:1}:$unit" echo "$state" >/dev/null
+
         if [[ $load = not-found ]]; then
           # don't include "not-found" when showing inactive units
           if [[ -z $inactive ]]; then
-            _sysz_print_unit "$color" "$mgr" "$unit"
+            _sysz_print_unit "$state" "$mgr" "$unit"
           fi
           continue
         fi
@@ -627,7 +642,7 @@ function _sysz_ls() {
           desc=$(_sysz_ctl --"$mgr" cat "$unit" | grep -oP '^Description=\K.*')
         fi
 
-        _sysz_print_unit "$color" "$mgr" "$unit" "$desc"
+        _sysz_print_unit "$state" "$mgr" "$unit" "$desc"
       done
   done
 }
@@ -650,6 +665,8 @@ function _sysz_ls_all_units() {
   done
 
   if [[ ${sysz_types[*]} != template ]]; then
+    # dont print everything if only "template" is selected
+
     # failed
     _sysz_ls failed list-units "${type_flags[@]}" --failed
 
@@ -680,14 +697,9 @@ function _sysz_ls_all_units() {
 
     # masked
     _sysz_ls masked list-units "${type_flags[@]}" --state=masked
-  fi
 
-  # templates
-  _sysz_ls template list-unit-files "${type_flags[@]}" '*@.*'
-
-  if [[ ${sysz_types[*]} != template ]]; then
     # everything from list-unit-files that isn't in list-units or a template
-    for mgr in "${sysz_managers[@]}"; do
+    for mgr in "${sysz_mgrs[@]}"; do
       comm -13 \
         <($sysz_ls_units_cmd --"$mgr" list-units "${type_flags[@]}" | cut -f1 -d' ' | _sysz_clean | sort -u) \
         <($sysz_ls_units_cmd --"$mgr" list-unit-files "${type_flags[@]}" '*[!@].*' | _sysz_clean | cut -f1 -d' ' | sort -u) | while read -r unit; do
@@ -697,6 +709,9 @@ function _sysz_ls_all_units() {
       done
     done
   fi
+
+  # templates
+  _sysz_ls template list-unit-files "${type_flags[@]}" '*@.*'
 }
 
 function _sysz_ls_units() {
@@ -761,7 +776,7 @@ function _sysz_preview_units() {
     if [[ $unit = *@.* ]]; then
       state=template
     else
-      state=$(_sysz_pick_prop "$pick" ActiveState)
+      state=$(_sysz_cache state "$pick" ActiveState)
     fi
     _sysz_print_unit "$state" "$mgr" "$unit" "$desc"
   done
@@ -770,8 +785,11 @@ function _sysz_preview_units() {
 function _sysz_cmds_prompt() {
   local preview_args
   if [[ ${#sysz_units[@]} -gt 1 ]]; then
-    printf -v preview_args "'%s' " "${sysz_units[@]}"
-    preview_cmd="'${BASH_SOURCE[0]}' _sysz_preview_units $preview_args"
+    # TODO decompose the selected units
+    # TODO print the units
+    # TODO store the printed form in an array
+    printf -v preview_args "%s\n" "${sysz_units[@]}"
+    preview_cmd="echo -e '$preview_args'"
     _sysz_debug "preview_cmd=$preview_cmd"
     multi=true
   fi
@@ -840,7 +858,7 @@ function _sysz_handle_key() {
     return
     ;;
   ctrl-x)
-    _sysz_managers_prompt
+    _sysz_mgrs_prompt
     return
     ;;
   esc)
@@ -859,7 +877,7 @@ function _sysz_pick_prop() {
   local value
   if [[ -z ${store[$pick]} ]]; then
     read -r mgr unit rest <<<"$1"
-    value=$(_sysz_ctl "$(_sysz_manager_flag "$mgr")" show "$unit" -p "$prop" --value)
+    value=$(_sysz_ctl --"$(_sysz_mgr_fullname "$mgr")" show "$unit" -p "$prop" --value)
     store["$pick"]=$value
   else
     value=${store[$pick]}
@@ -874,7 +892,7 @@ function _sysz_handle_command() {
   local unit
 
   _sysz_debug "pick=$pick"
-  mgr=$(_sysz_manager_flag "$pick")
+  mgr=$(_sysz_mgr_fullname "$pick")
   _sysz_debug "mgr=$mgr"
   unit=${pick##* }
   _sysz_debug "unit=$unit"
@@ -887,30 +905,30 @@ function _sysz_handle_command() {
   _sysz_debug "cmd=$cmd"
   case $cmd in
   edit)
-    _sysz_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r pre_sum
-    _sysz_sudo_ctl "$mgr" edit -- "$unit"
-    _sysz_sudo_ctl "$mgr" cat -- "$unit" | cksum | read -r post_sum
+    _sysz_sudo_ctl --"$mgr" cat -- "$unit" | cksum | read -r pre_sum
+    _sysz_sudo_ctl --"$mgr" edit -- "$unit"
+    _sysz_sudo_ctl --"$mgr" cat -- "$unit" | cksum | read -r post_sum
     if [[ $pre_sum != "$post_sum" ]]; then
-      _sysz_sudo_ctl "$mgr" daemon-reload
+      _sysz_sudo_ctl --"$mgr" daemon-reload
       _sysz_do_commands "$pick"
     fi
     ;;
   journal)
-    _sysz_journalctl "$mgr" "$unit" -xe "${sysz_ctl_args[@]}"
+    _sysz_journalctl --"$mgr" "$unit" -xe "${sysz_ctl_args[@]}"
     ;;
   follow)
     set -x
-    _sysz_journalctl "$mgr" "$unit" -xef "${sysz_ctl_args[@]}"
+    _sysz_journalctl --"$mgr" "$unit" -xef "${sysz_ctl_args[@]}"
     ;;
   status)
-    _sysz_sudo_ctl "$mgr" "$cmd" --pager "${sysz_ctl_args[@]}" -- "$unit"
+    _sysz_sudo_ctl --"$mgr" "$cmd" --pager "${sysz_ctl_args[@]}" -- "$unit"
     ;;
   cat | show)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-pager "${sysz_ctl_args[@]}" -- "$unit"
+    _sysz_sudo_ctl --"$mgr" "$cmd" --no-pager "${sysz_ctl_args[@]}" -- "$unit"
     ;;
   *)
-    _sysz_sudo_ctl "$mgr" "$cmd" --no-block "${sysz_ctl_args[@]}" -- "$unit"
-    _sysz_sudo_ctl "$mgr" status --no-pager -- "$unit"
+    _sysz_sudo_ctl --"$mgr" "$cmd" --no-block "${sysz_ctl_args[@]}" -- "$unit"
+    _sysz_sudo_ctl --"$mgr" status --no-pager -- "$unit"
     ;;
   esac
 }
@@ -981,16 +999,16 @@ function _sysz_main() {
   mkdir -p "$(dirname "$SYSZ_HISTORY")"
   touch "$SYSZ_HISTORY" || _sysz_error "Unable to write to $SYSZ_HISTORY"
 
-  _sysz_default_managers
+  _sysz_default_mgrs
 
   while [[ -n $1 ]]; do
     case $1 in
     # options
     -u | --user)
-      sysz_managers=(user)
+      sysz_mgrs=(user)
       ;;
     --sys | --system)
-      sysz_managers=(system)
+      sysz_mgrs=(system)
       ;;
     --state=*)
       sysz_states+=("${1#--state=}")
@@ -1088,7 +1106,7 @@ function _sysz_main() {
     shift
   done
 
-  _sysz_debug "sysz_managers=(${sysz_managers[*]})"
+  _sysz_debug "sysz_mgrs=(${sysz_mgrs[*]})"
   _sysz_debug "sysz_cmds=(${sysz_cmds[*]})"
   _sysz_debug "sysz_states=(${sysz_states[*]})"
   _sysz_debug "sysz_types=(${sysz_types[*]})"
